@@ -1,0 +1,54 @@
+site_name: Template
+
+theme:
+  name: material
+  language: pt-BR
+  logo: assets/logo.png
+  favicon: assets/logo.png
+  palette:
+    # Palette toggle for light mode
+    - scheme: default
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - scheme: slate
+      toggle:
+        icon: material/toggle-switch-off-outline
+        name: Switch to light mode
+
+markdown_extensions:
+  - attr_list
+  - admonition
+  - pymdownx.tasklist
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+
+extra_css:
+  - stylesheets/extra.css
+  - stylesheets/material.css
+  - stylesheets/mkdocstrings.css
+
+plugins:
+  - swagger-ui-tag
+  - search
+  - autorefs
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            docstring_style: google
+            show_source: true
+            show_bases: true
+            show_root_heading: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            merge_init_into_class: true
+
+extra:
+  commands:
+    run: uvicorn app:app --reload --host 0.0.0.0 --port 7000 --proxy-headers --forwarded-allow-ips

@@ -1,0 +1,65 @@
+[project]
+name = "TEMPLATE"
+version = "1.0"
+description = "Descrição sobre o projeto"
+readme = "README.md"
+requires-python = ">=3.13"
+
+dependencies = [
+    "alembic>=1.15.2",
+    "bcrypt>=4.3.0",
+    "email-validator>=2.2.0",
+    "fastapi[standard]>=0.115.12",
+    "jinja2>=3.1.6",
+    "openai-whisper>=20250625",
+    "psycopg2-binary>=2.9.10",
+    "pydantic-settings>=2.8.1",
+    "pydantic[email]>=2.11.1",
+    "pyjwt>=2.10.1",
+    "python-dotenv>=1.1.0",
+    "python-magic>=0.4.27",
+    "python-multipart>=0.0.20",
+    "sqlalchemy>=2.0.40",
+]
+
+[dependency-groups]
+
+dev = [
+    "black>=25.1.0",
+    "faker>=37.1.0",
+    "isort>=6.0.1",
+    "pre-commit>=4.2.0",
+    "taskipy>=1.14.1",
+]
+test = [
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=6.0.0",
+    "sqlalchemy-utils>=0.41.2",
+]
+doc = [
+    "mkdocs-material>=9.6.9",
+    "mkdocs-swagger-ui-tag>=0.6.11",
+    "mkdocstrings-python>=1.16.8",
+    "pymdown-extensions>=10.14.3",
+]
+
+
+[tool.taskipy.tasks]
+run = "uv run --env-file .env uvicorn app.main:app --reload --host 0.0.0.0 --port 7000 --proxy-headers --forwarded-allow-ips '*'"
+port = "uv run --env-file .env read -p 'PORTA: ' porta && uvicorn app:app --reload --host 0.0.0.0 --forwarded-allow-ips '*' --proxy-headers --port $porta"
+lint = "black --check --diff . && isort --check --diff ."
+docs = "uv run --env-file .env mkdocs serve"
+test = "pytest -s -x --cov=app -vv"
+test_pdb = "pytest -s -x --pdb"
+post_test = "coverage html"
+cov = "google-chrome htmlcov/index.html"
+rev = "read -p 'nome da revision: ' nome && uv run --env-file .env alembic revision --autogenerate -m $nome "
+up = "uv run --env-file .env alembic upgrade head"
+down = "uv run --env-file .env alembic downgrade base"
+export = "poetry export > requirements.txt --without-hashes"
+install_req = "cat requirements.txt | grep -E '^[^# ]' | cut -d ';' -f1  | xargs -n 1 poetry add"
+install_up_req = "cat requirements.txt | grep -E '^[^# ]' | cut -d '=' -f1  | xargs -n 1 poetry add"
+pc = "pre-commit run --all-files"
+pc_update = "pre-commit autoupdate"
+init_db = "docker start postgres"

@@ -1,0 +1,79 @@
+from fastapi import APIRouter, Response, status
+from fastapi.param_functions import Depends
+from pydantic.types import UUID4
+
+from app import auth, error, schema
+from app.db.session import _db
+from app.services.user_roles_service import UserRolesService
+from app.util import QueryParametersDep
+
+router = APIRouter(prefix="/user-roles", tags=["UserRoles"])
+
+
+@router.get(
+    "/",
+    response_model=schema.ResponseUserRoles,
+    status_code=status.HTTP_200_OK,
+)
+def get_user_roles(
+    query_parameters: QueryParametersDep,
+    session: _db,
+    Authentication: str = Depends(auth.Key.n5),
+) -> schema.ResponseUserRoles:
+    """Realiza requisiçoes tipo **GET** em **UserRoles** models"""
+    try:
+        return UserRolesService.get_user_roles(query_parameters, session)
+    except Exception as e:
+        raise error.custom_HTTPException(e)
+
+
+@router.post(
+    "/",
+    response_model=schema.GetUserRoles,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_user_roles(
+    json_data: schema.PostUserRoles,
+    session: _db,
+    Authentication: str = Depends(auth.Key.n5),
+) -> schema.GetUserRoles:
+    """Recebe uma requisição tipo `POST` contendo dados referente a **UserRoles**"""
+    try:
+        return UserRolesService.create_user_role(json_data, session)
+    except Exception as e:
+        raise error.custom_HTTPException(e)
+
+
+@router.patch(
+    "/{id}",
+    response_model=schema.GetUserRoles,
+    status_code=status.HTTP_200_OK,
+)
+def update_user_roles_by_uuid(
+    id: UUID4,
+    json_data: schema.PatchUserRoles,
+    session: _db,
+    Authentication: str = Depends(auth.Key.n5),
+) -> schema.GetUserRoles:
+    """Atualiza um dado na tabela **UserRoles** a partir de um UUID valido"""
+    try:
+        return UserRolesService.patch_user_role(id, json_data, session)
+    except Exception as e:
+        raise error.custom_HTTPException(e)
+
+
+@router.delete(
+    "/{id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_user_roles_by_uuid(
+    id: UUID4,
+    session: _db,
+    Authentication: str = Depends(auth.Key.n5),
+):
+    """Deleta um dado na tabela **UserRoles** a partir do seu UUID"""
+    try:
+        UserRolesService.delete_user_role(id, session)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        raise error.custom_HTTPException(e)

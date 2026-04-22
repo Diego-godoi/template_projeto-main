@@ -1,0 +1,88 @@
+[tool.poetry]
+name = "Template"
+version = "1.0"
+description = "Descrição sobre o projeto"
+authors = ["Michael Lopes Ferreira <michael.lopes@unemat.br>"]
+readme = "README.md"
+packages = [{include = "template"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+sqlalchemy = "^2.0.5.post1"
+uvicorn = "^0.20.0"
+python-magic = "^0.4.27"
+pyjwt = "^2.6.0"
+python-dotenv = "^1.0.0"
+python-multipart = "^0.0.6"
+jinja2 = "^3.1.3"
+bcrypt = "^4.0.1"
+psycopg2-binary = "^2.9.5"
+alembic = "^1.10.2"
+pydantic-settings = "^2.0.3"
+fastapi = "^0.115.4"
+pre-commit = "^3.5.0"
+email-validator = "^2.1.0.post1"
+slowapi = "^0.1.9"
+redis = "^5.0.0"
+
+
+[tool.poetry.group.doc.dependencies]
+mkdocs-material = "^9.5.12"
+pymdown-extensions = "^10.7"
+mkdocstrings = "^0.24.0"
+griffe = "^0.40.1"
+mkdocstrings-python = "^1.8.0"
+mkdocs-swagger-ui-tag = "^0.6.8"
+jinja2 = "^3.1.3"
+
+
+[tool.poetry.group.dev.dependencies]
+isort = "^5.12.0"
+black = "^23.1.0"
+taskipy = "^1.10.3"
+pre-commit = "^3.1.1"
+httpx = "^0.28.1"
+
+
+[tool.poetry.group.test.dependencies]
+pytest-asyncio = "^0.21.0"
+sqlalchemy-utils = "^0.40.0"
+faker = "^18.3.1"
+pytest = "^7.2.2"
+pytest-cov = "^4.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+pythonpath = "."
+addopts = "--ignore=alembic"
+asyncio_mode = "auto"
+
+[tool.black]
+line-length = 79
+
+[tool.isort]
+line_length = 79
+profile = "black"
+
+[tool.taskipy.tasks]
+run = "uvicorn app:app --reload --host 0.0.0.0 --port 7000 --proxy-headers --forwarded-allow-ips '*'"
+run_custom = "read -p 'PORTA: ' porta && uvicorn app:app --reload --host 0.0.0.0 --forwarded-allow-ips '*' --proxy-headers --port $porta"
+lint = "black --check --diff . && isort --check --diff ."
+docs = "mkdocs serve"
+pre_test= "black . && isort ."
+test = "pytest -s -x --cov=app -vv"
+test_pdb = "pytest -s -x --pdb"
+post_test = "coverage html"
+cov = "echo 'Relatório de cobertura disponível em: http://localhost:8000' && python -m http.server 8000 --directory htmlcov"
+rev = "read -p 'nome da revision: ' nome && alembic revision --autogenerate -m $nome "
+up = "alembic upgrade head"
+down = "alembic downgrade base"
+export = "poetry export > requirements.txt --without-hashes"
+install_req = "cat requirements.txt | grep -E '^[^# ]' | cut -d ';' -f1  | xargs -n 1 poetry add"
+install_up_req = "cat requirements.txt | grep -E '^[^# ]' | cut -d '=' -f1  | xargs -n 1 poetry add"
+pc = "pre-commit run --all-files"
+pc_update = "pre-commit autoupdate"
+init_db = "docker start postgres"

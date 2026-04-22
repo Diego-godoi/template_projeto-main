@@ -1,0 +1,17 @@
+# Arquivos do Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Arquivos de segredo
+.env
+
+# Metadados do Git e VSCode
+.git/
+.vscode/
+
+# Dependências locais e caches do Python
+__pycache__/
+*.pyc
+venv/
+.venv/
