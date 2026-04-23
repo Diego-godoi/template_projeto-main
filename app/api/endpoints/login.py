@@ -1,18 +1,19 @@
-import json
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app import auth, core, error, models, schema, util
+from app import auth, core, error, schema, util
 from app.core.limiter import limiter
 from app.db.session import _db
+from app.services.auth_service import AuthService
 
 router = APIRouter(tags=["login"])
 
 
 @router.get("/popDB/")
 def populate_db(session: _db):
+    """Endpoint para popular o banco (Usado para dev)"""
     from app.db.init_db import pop_db
 
     pop_db(session)
@@ -28,16 +29,10 @@ def post_login(
 ):
     """Logar"""
     try:
-        user = models.Users.login(
-            "email", login.username, login.password, session
-        )
-        key = [key.role.access_level for key in user.user_roles]
-        sub = {
-            "user_id": str(user.id),
-            "key": [i for i in range(1, 10 + 1)] if 10 in key else key,
-        }
+        user, sub = AuthService.login(login.username, login.password, session)
+
         token = auth.encode_token(
-            json.dumps(sub),
+            sub,
             core.settings.ACCESS_TOKEN_EXPIRE_MINUTES,
         )
         response = schema.LoginResponse(
@@ -48,9 +43,7 @@ def post_login(
         raise error.custom_HTTPException(e)
 
 
-@router.post(
-    "/forgot-my-password/", response_model=schema.ForgotPasswordResponse
-)
+@router.post("/forgot-my-password/", response_model=schema.ForgotPasswordResponse)
 @limiter.limit("3/minute")
 async def forgot_my_password(
     request: Request,
@@ -60,44 +53,14 @@ async def forgot_my_password(
 ):
     """Esqueci minha senha"""
     try:
-        user = models.Users.get(session, "email", email.email)
-        if not user:
-            return schema.ForgotPasswordResponse(
-                message="Se o e-mail estiver cadastrado, as instruções serão enviadas."
-            )
-
-        code = util.generate_code()
-
-        # Envio sendo feito em background para não travar a UI/API
-        background_tasks.add_task(
-            util.send_email,
-            email.email,
-            core.settings.PROJECT_NAME,
-            util.template_string(
-                "reset_password.html",
-                {
-                    "code": code,
-                },
-            ),
+        message, email_payload = AuthService.request_password_reset(
+            email.email, session
         )
-        hash_to_string = core.get_password_hash(code)
+        if email_payload:
+            to, subject, body = email_payload
+            background_tasks.add_task(util.send_email, to, subject, body)
 
-        from datetime import datetime, timedelta
-
-        expiration = datetime.now() + timedelta(
-            minutes=core.settings.RESET_PASSWORD_TOKEN_EXPIRATION_MINUTES
-        )
-
-        models.Users.update(
-            user.id,
-            session,
-            reset_password_code=hash_to_string,
-            reset_password_expiration=expiration,
-        )
-
-        return schema.ForgotPasswordResponse(
-            message="Se o e-mail estiver cadastrado, as instruções serão enviadas."
-        )
+        return schema.ForgotPasswordResponse(message=message)
     except Exception as e:
         raise error.custom_HTTPException(e)
 
@@ -109,38 +72,6 @@ def put_password(
 ):
     """Altera a senha do usuario"""
     try:
-        data.code = util.normalize_uper(data.code)
-        user = models.Users.get(session, "email", data.email)
-
-        if (
-            not user
-            or not user.reset_password_code
-            or not user.reset_password_expiration
-        ):
-            raise error.CustomException(401, "Email ou código inválido")
-
-        from datetime import datetime
-
-        if datetime.now() > user.reset_password_expiration:
-            raise error.CustomException(401, "Código expirado")
-
-        if not core.verify_password(data.code, user.reset_password_code):
-            raise error.CustomException(401, "Email ou código inválido")
-
-        # O schema Password (types_annotated) já realiza o hash internamente. Garantimos apenas o encode pra bytes (LargeBinary)
-        senha_final = (
-            data.password.encode("utf-8")
-            if isinstance(data.password, str)
-            else data.password
-        )
-
-        models.Users.update(
-            user.id,
-            session,
-            password=senha_final,
-            reset_password_code=None,
-            reset_password_expiration=None,
-        )
-        return "Senha alterada"
+        return AuthService.reset_password(data, session)
     except Exception as e:
         raise error.custom_HTTPException(e)

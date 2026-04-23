@@ -7,9 +7,7 @@ __all__ = ["settings"]
 
 
 class Settings(BaseSettings):
-    API_URL_PREFIX: str | None = Field(
-        None, description="Prefixo da URL da API"
-    )
+    API_URL_PREFIX: str | None = Field(None, description="Prefixo da URL da API")
     SECRET_KEY: str | None = Field(
         None,
         description="Chave secreta para criptografia",
@@ -29,13 +27,9 @@ class Settings(BaseSettings):
     SMTP_TLS: bool | None = Field(None, description="Utilizar TLS para SMTP")
     SMTP_PORT: int | None = Field(None, description="Porta para conexão SMTP")
     SMTP_HOST: str | None = Field(None, description="Host para conexão SMTP")
-    SMTP_PASSWORD: str | None = Field(
-        None, description="Senha para conexão SMTP"
-    )
+    SMTP_PASSWORD: str | None = Field(None, description="Senha para conexão SMTP")
 
-    EMAILS_FROM_EMAIL: str | None = Field(
-        None, description="E-mail do remetente"
-    )
+    EMAILS_FROM_EMAIL: str | None = Field(None, description="E-mail do remetente")
     EMAILS_FROM_NAME: str | None = Field(None, description="Nome do remetente")
     EMAIL_RESET_TOKEN_EXPIRE_HOURS: int | None = Field(
         48, description="Validade do token de redefinição de e-mail em horas"
@@ -49,25 +43,20 @@ class Settings(BaseSettings):
         None, description="Senha do primeiro superusuário"
     )
 
-    TEMPLATES_DIR: str | None = Field(
-        None, description="Diretório de templates"
-    )
+    TEMPLATES_DIR: str | None = Field(None, description="Diretório de templates")
     UPLOAD_DIR: str | None = Field(None, description="Diretório de upload")
 
-    URL_TOKEN: str = Field(..., description="URL de login")
+    URL_TOKEN: str | None = Field(
+        None,
+        description="URL de login (opcional; default calculado automaticamente)",
+    )
 
-    POSTGRES_USER: str = Field(
-        description="Usuário do banco de dados PostgreSQL"
-    )
-    POSTGRES_PASSWORD: str = Field(
-        description="Senha do banco de dados PostgreSQL"
-    )
+    POSTGRES_USER: str = Field(description="Usuário do banco de dados PostgreSQL")
+    POSTGRES_PASSWORD: str = Field(description="Senha do banco de dados PostgreSQL")
     POSTGRES_SERVER: str = Field(
         description="Host/Servidor do banco de dados PostgreSQL"
     )
-    POSTGRES_PORT: str = Field(
-        "5432", description="Porta do banco de dados PostgreSQL"
-    )
+    POSTGRES_PORT: str = Field("5432", description="Porta do banco de dados PostgreSQL")
     POSTGRES_DB: str = Field(description="Nome do banco de dados PostgreSQL")
     POSTGRES_DB_TEST: str = Field(
         "template_teste", description="Nome do banco de dados para testes"

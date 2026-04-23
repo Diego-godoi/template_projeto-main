@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Response, status
-from fastapi.param_functions import Depends
+from fastapi import APIRouter, Response, Security, status
 from pydantic.types import UUID4
 
 from app import auth, error, schema
@@ -18,7 +17,7 @@ router = APIRouter(prefix="/roles", tags=["Roles"])
 def get_roles(
     query_parameters: QueryParametersDep,
     session: _db,
-    Authorization: str = Depends(auth.Key.n5),
+    Authorization: dict = Security(auth.get_current_payload, scopes=["admin"]),
 ) -> schema.ResponseRoles:
     """Realiza requisiçoes tipo **GET** em **Roles** models
 
@@ -37,13 +36,11 @@ def get_roles(
         raise error.custom_HTTPException(e)
 
 
-@router.post(
-    "/", response_model=schema.GetRoles, status_code=status.HTTP_201_CREATED
-)
+@router.post("/", response_model=schema.GetRoles, status_code=status.HTTP_201_CREATED)
 def create_roles(
     json_data: schema.PostRoles,
     session: _db,
-    Authentication: str = Depends(auth.Key.n5),
+    Authentication: dict = Security(auth.get_current_payload, scopes=["admin"]),
 ) -> schema.GetRoles:
     """Recebe uma requisição tipo `POST` contendo dados referente a **Roles**
 
@@ -63,14 +60,12 @@ def create_roles(
         raise error.custom_HTTPException(e)
 
 
-@router.patch(
-    "/{id}", response_model=schema.GetRoles, status_code=status.HTTP_200_OK
-)
+@router.patch("/{id}", response_model=schema.GetRoles, status_code=status.HTTP_200_OK)
 def update_roles_by_id(
     id: UUID4,
     json_data: schema.PatchRoles,
     session: _db,
-    Authentication: str = Depends(auth.Key.n5),
+    Authentication: dict = Security(auth.get_current_payload, scopes=["admin"]),
 ) -> schema.GetRoles:
     """Atualiza um dado na tabela **Roles** a partir de um UUID valido
 
@@ -95,7 +90,7 @@ def update_roles_by_id(
 def delete_roles_by_id(
     id: UUID4,
     session: _db,
-    Authentication: str = Depends(auth.Key.n5),
+    Authentication: dict = Security(auth.get_current_payload, scopes=["admin"]),
 ):
     """Deleta um dado na tabela **Roles** a partir do seu UUID
 

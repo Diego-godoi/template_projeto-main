@@ -4,7 +4,6 @@ Testes abrangentes dos utilitários lógicos do sistema (conversões de formatos
 """
 
 import os
-import re
 
 import pytest
 from fastapi import UploadFile
@@ -18,38 +17,26 @@ from app.util import functions
 
 
 def test_pascal_to_camel_case():
-    assert (
-        functions.pascal_to_camel_case("MinhaClassePascal")
-        == "minhaClassePascal"
-    )
+    assert functions.pascal_to_camel_case("MinhaClassePascal") == "minhaClassePascal"
     assert functions.pascal_to_camel_case("UmaPalavra") == "umaPalavra"
     assert functions.pascal_to_camel_case("A") == "a"
 
 
 def test_pascal_to_snake_case():
     # O script atual insere '_' antes das maiúsculas e passa para minúsculo
-    assert (
-        functions.pascal_to_snake_case("MinhaClassePascal")
-        == "minha_classe_pascal"
-    )
+    assert functions.pascal_to_snake_case("MinhaClassePascal") == "minha_classe_pascal"
     assert functions.pascal_to_snake_case("Uma") == "uma"
 
 
 def test_snake_to_pascal_case():
-    assert (
-        functions.snake_to_pascal_case("minha_classe_pascal")
-        == "MinhaClassePascal"
-    )
+    assert functions.snake_to_pascal_case("minha_classe_pascal") == "MinhaClassePascal"
     assert functions.snake_to_pascal_case("uma") == "Uma"
     # Também converte se for uma única palavra iniciada em minúscula
     assert functions.snake_to_pascal_case("variável") == "Variável"
 
 
 def test_pascal_to_kebab_case():
-    assert (
-        functions.pascal_to_kebab_case("MinhaClassePascal")
-        == "minha-classe-pascal"
-    )
+    assert functions.pascal_to_kebab_case("MinhaClassePascal") == "minha-classe-pascal"
     assert functions.pascal_to_kebab_case("Uma") == "uma"
 
 
@@ -59,10 +46,7 @@ def test_camel_to_kebab():
 
 
 def test_camel_to_snake_case():
-    assert (
-        functions.camel_to_snake_case("minhaClasseCamel")
-        == "minha_classe_camel"
-    )
+    assert functions.camel_to_snake_case("minhaClasseCamel") == "minha_classe_camel"
     assert functions.camel_to_snake_case("simples") == "simples"
 
 
@@ -101,16 +85,12 @@ def test_generate_cpf_validez():
 
 def test_save_file_video_sucesso(monkeypatch, tmp_path):
     """Testa salvar um arquivo de vídeo autêntico apontando para temp_dir."""
-    monkeypatch.setattr(
-        "app.util.functions.settings.UPLOAD_DIR", str(tmp_path)
-    )
+    monkeypatch.setattr("app.util.functions.settings.UPLOAD_DIR", str(tmp_path))
 
     video_path = "tests/file_test/video.mp4"
     # Certificar-se que o arquivo existe para não quebrar localmente
     if not os.path.exists(video_path):
-        pytest.skip(
-            f"Arquivo de mock {video_path} não encontrado, pulando teste."
-        )
+        pytest.skip(f"Arquivo de mock {video_path} não encontrado, pulando teste.")
 
     with open(video_path, "rb") as f:
         # UploadFile do FastAPI
@@ -125,9 +105,7 @@ def test_save_file_video_sucesso(monkeypatch, tmp_path):
 
 def test_save_file_formato_invalido(monkeypatch, tmp_path):
     """Tentando passar o vídeo mas pedindo validação de imagem deve falhar."""
-    monkeypatch.setattr(
-        "app.util.functions.settings.UPLOAD_DIR", str(tmp_path)
-    )
+    monkeypatch.setattr("app.util.functions.settings.UPLOAD_DIR", str(tmp_path))
     video_path = "tests/file_test/video.mp4"
 
     if not os.path.exists(video_path):
@@ -151,9 +129,7 @@ def test_save_file_dir_nao_encontrado(monkeypatch):
     )
 
     with pytest.raises(CustomException) as exc_info:
-        file_mock = UploadFile(
-            filename="teste.txt", file=open(os.devnull, "rb")
-        )
+        file_mock = UploadFile(filename="teste.txt", file=open(os.devnull, "rb"))
         functions.save_file(file_mock, "video")
 
     assert exc_info.value.status_code == 400

@@ -92,7 +92,5 @@ def custom_HTTPException(e: Any) -> NoReturn:
         )
     raise HTTPException(
         status_code=e.status_code if hasattr(e, "status_code") else 500,
-        detail=e.detail
-        if hasattr(e, "status_code")
-        else "Erro Interno da API",
+        detail=e.detail if hasattr(e, "status_code") else "Erro Interno da API",
     )

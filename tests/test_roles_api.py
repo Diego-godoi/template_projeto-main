@@ -1,23 +1,21 @@
-import pytest
 from faker import Faker
 from fastapi.testclient import TestClient
 
-from app.auth import Key
+from app.auth import get_current_payload
 from app.core.config import settings
 from app.main import app
-from app.schema import PatchRoles, PostRoles
 
 fake = Faker("pt_BR")
 API_PREFIX = settings.API_URL_PREFIX
 
 
-# Mock para by-pass na autenticação n5
-async def override_n5():
-    return {"user_id": "test", "key": [5]}
+# Mock para by-pass na autenticação (admin)
+async def override_admin():
+    return {"user_id": "test", "scopes": ["admin"]}
 
 
 def test_roles_crud_fluxo_completo(client: TestClient):
-    app.dependency_overrides[Key.n5] = override_n5
+    app.dependency_overrides[get_current_payload] = override_admin
     try:
         # 1. Post (Create)
         role_name = "Gerente de Projeto " + fake.word()
@@ -39,9 +37,7 @@ def test_roles_crud_fluxo_completo(client: TestClient):
         # 3. Patch (Update)
         novo_nome = "DIRETOR GERAL " + fake.word()
         patch_payload = {"name": novo_nome}
-        resp_patch = client.patch(
-            f"{API_PREFIX}/roles/{role_id}", json=patch_payload
-        )
+        resp_patch = client.patch(f"{API_PREFIX}/roles/{role_id}", json=patch_payload)
         assert resp_patch.status_code == 200
         assert resp_patch.json()["name"] == novo_nome
 
@@ -51,9 +47,7 @@ def test_roles_crud_fluxo_completo(client: TestClient):
 
         # Confirma remoção
         resp_get_after = client.get(f"{API_PREFIX}/roles/")
-        assert not any(
-            r["id"] == role_id for r in resp_get_after.json()["data"]
-        )
+        assert not any(r["id"] == role_id for r in resp_get_after.json()["data"])
 
     finally:
-        app.dependency_overrides.pop(Key.n5, None)
+        app.dependency_overrides.pop(get_current_payload, None)

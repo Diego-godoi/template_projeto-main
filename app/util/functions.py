@@ -142,9 +142,7 @@ def list_files(path: str) -> list:
     Returns:
         list: lista contendo nome de todos os arquivos de um diretorio
     """
-    onlyfiles = [
-        f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))
-    ]
+    onlyfiles = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
     return onlyfiles
 
 

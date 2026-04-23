@@ -1,16 +1,16 @@
-import logging
 import os
 from enum import Enum
 
 import magic
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, responses
+from fastapi import APIRouter, File, Form, UploadFile, responses,Security
 from pydantic.types import UUID4
 
-from app import core, error
+from app import auth
+from app.core.config import settings
+from app import error
 from app.util.functions import save_file
 
 router = APIRouter(prefix="/file", tags=["File"])
-
 
 class FileType(str, Enum):
     Application = "application"
@@ -23,6 +23,7 @@ class FileType(str, Enum):
 def create_file(
     file: UploadFile = File(...),
     type_data: FileType = Form(...),
+    Authentication: dict = Security(auth.get_current_payload, scopes=["user"])
 ) -> str:
     """
     Cria um novo arquivo.
@@ -51,11 +52,11 @@ def create_file(
         filename = save_file(file, type_data)
         return filename
     except Exception as e:
-        raise error.custom_HTTPException(e)
+        raise error.error.custom_HTTPException(e)
 
 
 @router.get("/{filename}", response_class=responses.FileResponse)
-def get_file_by_filename(filename: UUID4):
+def get_file_by_filename(filename: UUID4, Authentication: dict = Security(auth.get_current_payload, scopes=["user"])):
     try:
         if os.path.exists(f"{core.settings.UPLOAD_DIR}{str(filename)}"):
             image = os.path.join(core.settings.UPLOAD_DIR, str(filename))
@@ -65,11 +66,9 @@ def get_file_by_filename(filename: UUID4):
                     yield from file_like
 
         else:
-            raise error.CustomException(
-                status_code=404, detail="Imagem nao encontrada"
-            )
+            raise error.CustomException(status_code=404, detail="Imagem nao encontrada")
     except Exception as e:
-        raise error.custom_HTTPException(e)
+        raise error.error.custom_HTTPException(e)
     return responses.StreamingResponse(
         iterfile(),
         media_type=magic.from_file(

@@ -47,7 +47,5 @@ def pop_db(db: Session) -> None:
         if not models.Users.get(db, "email", data["email"]):
             user_data = models.Users(**schema.PostUsers(**data).model_dump())
             role_data = models.Roles.get(db, "name", data["role"])
-            user_data.user_roles.append(
-                models.UserRoles(role_id=str(role_data.id))
-            )
+            user_data.user_roles.append(models.UserRoles(role_id=str(role_data.id)))
             user_data.create(db)

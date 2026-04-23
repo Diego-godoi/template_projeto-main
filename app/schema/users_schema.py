@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import Form
 from pydantic import BaseModel, Field, model_validator
 
-from app import core, error, models, util
+from app import util
 from app.error import ValidationException
 
 from .base_schema import MetaData
@@ -32,9 +32,7 @@ class PostUsers(BaseModel):
     # username: str = Field(..., description="Nome de usuário")
     email: str = Field(..., description="Email do usuário")
     password: bytes = Field(..., description="Senha do usuário")
-    active: bool | None = Field(
-        None, description="Indica se o usuário está ativo"
-    )
+    active: bool | None = Field(None, description="Indica se o usuário está ativo")
     full_name: str | None = Field(None, description="Nome completo do usuário")
     cpf: Cpf = Field(..., description="CPF do usuário")
 
@@ -56,9 +54,7 @@ class PostUsers(BaseModel):
 
         if "full_name" in data:
             try:
-                data["full_name"] = util.normalize_capitalize(
-                    data["full_name"]
-                )
+                data["full_name"] = util.normalize_capitalize(data["full_name"])
             except Exception as e:
                 errors.append(
                     {
@@ -101,12 +97,8 @@ class PostUsers(BaseModel):
         # username: str = Form(..., description="Nome de usuário"),
         email: Email = Form(..., description="Email do usuário"),
         password: Password = Form(..., description="Senha do usuário"),
-        active: bool = Form(
-            None, description="Indica se o usuário está ativo"
-        ),
-        full_name: FullName = Form(
-            None, description="Nome completo do usuário"
-        ),
+        active: bool = Form(None, description="Indica se o usuário está ativo"),
+        full_name: FullName = Form(None, description="Nome completo do usuário"),
         cpf: Cpf = Form(..., description="CPF do usuário"),
     ):
         return cls(
@@ -135,9 +127,7 @@ class GetUsers(BaseModel):
     email: str = Field(..., description="Email do usuário")
     active: bool = Field(..., description="Indica se o usuário está ativo")
     id: UUID = Field(..., description="UUID do usuário")
-    full_name: FullName | None = Field(
-        None, description="Nome completo do usuário"
-    )
+    full_name: FullName | None = Field(None, description="Nome completo do usuário")
     cpf: str = Field(..., description="CPF do usuário")
 
     class Config:
@@ -159,9 +149,7 @@ class PatchUsers(BaseModel):
     # username: str = Field(None, description="Nome de usuário")
     email: str = Field(None, description="Email do usuário")
     password: bytes = Field(None, description="Senha do usuário")
-    active: bool | None = Field(
-        None, description="Indica se o usuário está ativo"
-    )
+    active: bool | None = Field(None, description="Indica se o usuário está ativo")
     full_name: str | None = Field(None, description="Nome completo do usuário")
     cpf: str | None = Field(None, description="CPF do usuário")
 
@@ -196,9 +184,7 @@ class PatchUsers(BaseModel):
 
         if "full_name" in data:
             try:
-                data["full_name"] = util.normalize_capitalize(
-                    data["full_name"]
-                )
+                data["full_name"] = util.normalize_capitalize(data["full_name"])
             except Exception as e:
                 errors.append(
                     {

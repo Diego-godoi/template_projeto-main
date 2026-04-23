@@ -1,7 +1,5 @@
-import pytest
 
 from app.core import security
-from app.models import Users
 from tests.test_users_service import _criar_usuario
 
 

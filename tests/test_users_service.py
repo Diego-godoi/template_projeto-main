@@ -14,7 +14,6 @@ from sqlalchemy.orm import Session
 from app import schema
 from app.error import ValidationException
 from app.services.users_service import UsersService
-from app.util import normalize_password
 
 fake = Faker("pt_BR")
 

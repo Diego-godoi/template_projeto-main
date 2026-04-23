@@ -1,7 +1,6 @@
-import pytest
 from fastapi.testclient import TestClient
 
-from app.auth import Key
+from app.auth import get_current_payload
 from app.core.config import settings
 from app.main import app
 
@@ -16,10 +15,10 @@ def test_user_roles_crud_fluxo_completo(client: TestClient, db_session):
     user1, _ = _criar_usuario(db_session)
     role1 = _criar_role(db_session, name="ROLE_LINK_1")
 
-    async def override_n5():
-        return {"user_id": str(user1.id), "key": [5]}
+    async def override_admin():
+        return {"user_id": str(user1.id), "scopes": ["admin"]}
 
-    app.dependency_overrides[Key.n5] = override_n5
+    app.dependency_overrides[get_current_payload] = override_admin
     try:
         # 1. Post (Create vínculo)
         payload = {"user_id": str(user1.id), "role_id": str(role1.id)}
@@ -54,9 +53,7 @@ def test_user_roles_crud_fluxo_completo(client: TestClient, db_session):
 
         # Consulta não tem mais o vínculo
         resp_get_after = client.get(f"{API_PREFIX}/user-roles/")
-        assert not any(
-            ur["id"] == ur_id for ur in resp_get_after.json()["data"]
-        )
+        assert not any(ur["id"] == ur_id for ur in resp_get_after.json()["data"])
 
     finally:
-        app.dependency_overrides.pop(Key.n5, None)
+        app.dependency_overrides.pop(get_current_payload, None)

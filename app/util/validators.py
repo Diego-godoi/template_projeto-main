@@ -88,9 +88,7 @@ def validate_cnpj(cnpj: str) -> str:
 
     # Verifica se os dígitos verificadores calculados correspondem ao CNPJ
     if cnpj[-2:] != f"{dv1}{dv2}":
-        raise error.CustomException(
-            422, "CNPJ inválido. Dígito verificador incorreto."
-        )
+        raise error.CustomException(422, "CNPJ inválido. Dígito verificador incorreto.")
 
     # Retorna o CNPJ caso seja válido
     return cnpj

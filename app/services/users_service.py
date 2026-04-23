@@ -50,9 +50,7 @@ class UsersService:
         """
         errors = []
 
-        if models.Users.get(
-            _db=session, attribute="email", value=schema.email
-        ):
+        if models.Users.get(_db=session, attribute="email", value=schema.email):
             errors.append(
                 {
                     "loc": ["body", "email"],

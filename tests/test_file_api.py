@@ -4,7 +4,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
-from app.main import app
 
 API_PREFIX = settings.API_URL_PREFIX
 
@@ -58,9 +57,7 @@ def test_get_file_by_filename_success(client: TestClient, override_upload_dir):
     assert response.content == b"Conteudo Mockado GET"
 
 
-def test_get_file_by_filename_not_found(
-    client: TestClient, override_upload_dir
-):
+def test_get_file_by_filename_not_found(client: TestClient, override_upload_dir):
     import uuid
 
     fail_filename = str(uuid.uuid4())  # ID válido mas arquivo Inexistente

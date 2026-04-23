@@ -8,7 +8,7 @@ Utiliza o TestClient do FastAPI.
 from faker import Faker
 from fastapi.testclient import TestClient
 
-from app.auth import Key
+from app.auth import get_current_payload
 from app.core.config import settings
 from app.main import app
 
@@ -78,14 +78,14 @@ def test_post_usuario_email_duplicado_retorna_422(client: TestClient):
 def test_get_usuarios_retorna_200(client: TestClient):
     """
     Testa listagem de usuários retorna 200 OK via GET /users/.
-    Requer override de autenticação (Key.n1).
+    Requer override de autenticação (scope: user).
     """
 
-    # Mock para by-pass na autenticação n1
-    async def override_n1():
-        return {"user_id": "test", "key": [1]}
+    # Mock para by-pass na autenticação (user)
+    async def override_user():
+        return {"user_id": "test", "scopes": ["user"]}
 
-    app.dependency_overrides[Key.n1] = override_n1
+    app.dependency_overrides[get_current_payload] = override_user
 
     try:
         response = client.get(f"{API_PREFIX}/users/")
@@ -94,7 +94,7 @@ def test_get_usuarios_retorna_200(client: TestClient):
         assert "data" in data
         assert "meta" in data
     finally:
-        app.dependency_overrides.pop(Key.n1, None)
+        app.dependency_overrides.pop(get_current_payload, None)
 
 
 def test_patch_usuario_retorna_200(client: TestClient, db_session):
@@ -102,10 +102,10 @@ def test_patch_usuario_retorna_200(client: TestClient, db_session):
 
     user, _ = _criar_usuario(db_session)
 
-    async def override_n1():
-        return {"user_id": str(user.id), "key": [1]}
+    async def override_user():
+        return {"user_id": str(user.id), "scopes": ["user"]}
 
-    app.dependency_overrides[Key.n1] = override_n1
+    app.dependency_overrides[get_current_payload] = override_user
 
     try:
         novo_nome = "Nome Trocado Via API"
@@ -114,7 +114,7 @@ def test_patch_usuario_retorna_200(client: TestClient, db_session):
         assert response.status_code == 200
         assert response.json()["full_name"] == "Nome Trocado Via Api"
     finally:
-        app.dependency_overrides.pop(Key.n1, None)
+        app.dependency_overrides.pop(get_current_payload, None)
 
 
 def test_delete_usuario_retorna_204(client: TestClient, db_session):
@@ -122,13 +122,13 @@ def test_delete_usuario_retorna_204(client: TestClient, db_session):
 
     user, _ = _criar_usuario(db_session)
 
-    async def override_n1():
-        return {"user_id": str(user.id), "key": [1]}
+    async def override_user():
+        return {"user_id": str(user.id), "scopes": ["user"]}
 
-    app.dependency_overrides[Key.n1] = override_n1
+    app.dependency_overrides[get_current_payload] = override_user
 
     try:
         response = client.delete(f"{API_PREFIX}/users/{user.id}")
         assert response.status_code == 204
     finally:
-        app.dependency_overrides.pop(Key.n1, None)
+        app.dependency_overrides.pop(get_current_payload, None)

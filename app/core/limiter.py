@@ -8,6 +8,7 @@ Em produção/Docker, o storage é o Redis (REDIS_URL), garantindo que o
 rate limiting funcione corretamente com múltiplos workers. Em ambiente
 local/dev (sem REDIS_URL definida), cai no storage em memória (padrão).
 """
+
 import os
 
 from slowapi import Limiter

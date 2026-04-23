@@ -25,12 +25,8 @@ class UserRoles(Base):
         role (Roles): Objeto do papel associado.
     """
 
-    user_id: Mapped[UUID] = mapped_column(
-        SQLUUID(as_uuid=True), ForeignKey("users.id")
-    )
-    role_id: Mapped[UUID] = mapped_column(
-        SQLUUID(as_uuid=True), ForeignKey("roles.id")
-    )
+    user_id: Mapped[UUID] = mapped_column(SQLUUID(as_uuid=True), ForeignKey("users.id"))
+    role_id: Mapped[UUID] = mapped_column(SQLUUID(as_uuid=True), ForeignKey("roles.id"))
 
     user: Mapped["Users"] = relationship("Users", back_populates="user_roles")
     role: Mapped["Roles"] = relationship(

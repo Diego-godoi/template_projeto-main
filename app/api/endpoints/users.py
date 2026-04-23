@@ -1,7 +1,6 @@
 # app/routers/users.py
 
-from fastapi import APIRouter, Response, status
-from fastapi.param_functions import Depends
+from fastapi import APIRouter, Response, Security, status
 from pydantic.types import UUID4
 
 from app import auth, error, schema
@@ -20,7 +19,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 def get_users(
     query_parameters: QueryParametersDep,
     session: _db,
-    Authentication: str = Depends(auth.Key.n1),
+    Authentication: dict = Security(auth.get_current_payload, scopes=["user"]),
 ) -> schema.ResponseUsers:
     """Realiza requisiçoes tipo **GET** em **Users** models"""
     try:
@@ -37,7 +36,6 @@ def get_users(
 def create_users(
     json_data: schema.PostUsers,
     session: _db,  # <-- Dependência da sessão adicionada
-    Authentication: str = Depends(auth.Key.n0),
 ) -> schema.GetUsers:
     """Recebe uma requisição tipo `POST` contendo dados referente a **Users**"""
     try:
@@ -55,7 +53,7 @@ def update_users_by_uuid(
     id: UUID4,
     json_data: schema.PatchUsers,
     session: _db,
-    Authentication: str = Depends(auth.Key.n1),
+    Authentication: dict = Security(auth.get_current_payload, scopes=["user"]),
 ) -> schema.GetUsers:
     """Atualiza um dado na tabela **Users** a partir de um UUID valido"""
     try:
@@ -72,7 +70,7 @@ def update_users_by_uuid(
 def delete_users_by_uuid(
     id: UUID4,
     session: _db,
-    Authentication: str = Depends(auth.Key.n1),
+    Authentication: dict = Security(auth.get_current_payload, scopes=["user"]),
 ):
     """Deleta um dado na tabela **Users** a partir do seu UUID"""
     try:

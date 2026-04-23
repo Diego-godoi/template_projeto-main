@@ -48,9 +48,7 @@ class Base(DeclarativeBase):
             raise DatabaseException(detail=str(e), status_code=500)
 
     @classmethod
-    def login(
-        self, attribute: str, value: Any, password: str, _db: Session
-    ) -> object:
+    def login(self, attribute: str, value: Any, password: str, _db: Session) -> object:
         """executa login em usuario
 
         Args:
@@ -68,11 +66,7 @@ class Base(DeclarativeBase):
             object: _description_
         """
         try:
-            data = (
-                _db.query(self)
-                .filter(getattr(self, attribute) == value)
-                .first()
-            )
+            data = _db.query(self).filter(getattr(self, attribute) == value).first()
             if not data:
                 raise CustomException(
                     status_code=404,
@@ -80,9 +74,7 @@ class Base(DeclarativeBase):
                 )
             if hasattr(data, "active"):
                 if not data.active:
-                    raise CustomException(
-                        status_code=401, detail="Usuario Inativo"
-                    )
+                    raise CustomException(status_code=401, detail="Usuario Inativo")
 
             if not core.verify_password(password, data.password):
                 raise CustomException(
@@ -120,9 +112,7 @@ class Base(DeclarativeBase):
                 )
             if hasattr(self, attribute):
                 pattern = f"%{value}%"
-                query = _db.query(self).filter(
-                    getattr(self, attribute).ilike(pattern)
-                )
+                query = _db.query(self).filter(getattr(self, attribute).ilike(pattern))
                 data = query.all()
                 return data
             else:
@@ -191,9 +181,7 @@ class Base(DeclarativeBase):
                             status_code=422,
                             detail="O termo de busca não pode exceder 100 caracteres.",
                         )
-                    query = query.filter(
-                        getattr(self, attribute).ilike(f"%{value}%")
-                    )
+                    query = query.filter(getattr(self, attribute).ilike(f"%{value}%"))
                 elif operator == "!":
                     query = query.filter(getattr(self, attribute) != value)
                 elif operator == "<":
@@ -243,9 +231,7 @@ class Base(DeclarativeBase):
             if json_string:
                 # Verificar se há campos inválidos no json_string
                 invalid_fields = [
-                    field
-                    for field in json_string.keys()
-                    if not hasattr(self, field)
+                    field for field in json_string.keys() if not hasattr(self, field)
                 ]
                 if invalid_fields:
                     raise CustomException(
@@ -258,19 +244,13 @@ class Base(DeclarativeBase):
                     if operator == "=":
                         query = query.filter(getattr(self, field) == val)
                     elif operator == "~":
-                        attribute_type = (
-                            getattr(self, field).property.columns[0].type
-                        )
-                        if not isinstance(
-                            attribute_type, (String, Text, CHAR)
-                        ):
+                        attribute_type = getattr(self, field).property.columns[0].type
+                        if not isinstance(attribute_type, (String, Text, CHAR)):
                             raise CustomException(
                                 422,
                                 f"O operador ILIKE não pode ser aplicado ao tipo de dados do atributo '{field}'.",
                             )
-                        query = query.filter(
-                            getattr(self, field).ilike(f"%{val}%")
-                        )
+                        query = query.filter(getattr(self, field).ilike(f"%{val}%"))
                     else:
                         raise CustomException(
                             status_code=422,
@@ -315,9 +295,7 @@ class Base(DeclarativeBase):
         try:
             data = _db.query(self).filter_by(id=id).first()
             if not data:
-                raise CustomException(
-                    status_code=404, detail="Dado não encontrado"
-                )
+                raise CustomException(status_code=404, detail="Dado não encontrado")
             _db.delete(data)
             _db.commit()
             return "OK"
@@ -343,9 +321,7 @@ class Base(DeclarativeBase):
             exclude_files = []
             data = _db.query(self).filter_by(id=id).first()
             if not data:
-                raise CustomException(
-                    status_code=404, detail="Dado não encontrado"
-                )
+                raise CustomException(status_code=404, detail="Dado não encontrado")
 
             _db.delete(data)
             _db.commit()
@@ -449,11 +425,7 @@ class Base(DeclarativeBase):
             object: _description_
         """
         try:
-            data = (
-                _db.query(self)
-                .filter(getattr(self, attribute) == value)
-                .first()
-            )
+            data = _db.query(self).filter(getattr(self, attribute) == value).first()
 
             return data
         except Exception as e:

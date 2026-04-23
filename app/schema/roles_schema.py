@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import Form
 from pydantic import BaseModel, Field, model_validator
 
-from app import error, models
+from app import error
 
 from .base_schema import MetaData
 from .types_annotated import *
@@ -51,8 +51,7 @@ class PostRoles(BaseModel):
         cls,
         name: str = Form(..., description="name Documentar"),
         access_level: int = Form(..., description="access_level Documentar"),
-        description: str
-        | None = Form(None, description="description Documentar"),
+        description: str | None = Form(None, description="description Documentar"),
     ):
         return cls(
             name=name,

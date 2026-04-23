@@ -46,9 +46,7 @@ def test_patch_role_com_sucesso(db_session: Session):
     role = _criar_role(db_session, name="Supervisor", access_level=4)
 
     schema_patch = PatchRoles(access_level=5)
-    role_atualizada = RolesService.patch_role(
-        role.id, schema_patch, db_session
-    )
+    role_atualizada = RolesService.patch_role(role.id, schema_patch, db_session)
 
     assert role_atualizada.access_level == 5
     assert role_atualizada.name == "Supervisor"  # Não alterado

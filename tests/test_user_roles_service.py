@@ -17,7 +17,7 @@ from tests.test_users_service import _criar_usuario
 def _criar_user_role(db_session: Session) -> UserRoles:
     """Fixture auxiliar para criar um relacionamento de teste."""
     user, _ = _criar_usuario(db_session)
-    role = _criar_role(db_session, name=f"Role_{user.id}")
+    role = _criar_role(db_session, name="user")
 
     schema = PostUserRoles(user_id=user.id, role_id=role.id)
     return UserRolesService.create_user_role(schema, db_session)
@@ -70,9 +70,7 @@ def test_patch_user_role_referencias_invalidas_levanta_erro(
     schema_patch = PatchUserRoles(user_id=uuid4(), role_id=uuid4())
 
     with pytest.raises(ValidationException) as exc_info:
-        UserRolesService.patch_user_role(
-            user_role.id, schema_patch, db_session
-        )
+        UserRolesService.patch_user_role(user_role.id, schema_patch, db_session)
 
     errors = exc_info.value.detail
     assert len(errors) == 2
