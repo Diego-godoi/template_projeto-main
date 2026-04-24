@@ -2,11 +2,9 @@
 
 from uuid import UUID
 
-from fastapi import HTTPException
-
 from app import models, schema
 from app.db import _db
-from app.error import ValidationException
+from app import error
 from app.util import QueryParametersDep
 
 
@@ -69,7 +67,7 @@ class UsersService:
             )
 
         if errors:
-            raise ValidationException(errors)
+            raise error.ValidationException(errors)
 
         data = models.Users(**schema.model_dump())
         session.add(data)
@@ -90,7 +88,7 @@ class UsersService:
             session (Session): Sessão da transação com o banco de dados.
 
         Raises:
-            HTTPException: Lançada com status 404 se o user com o ID
+            CustomException: Lançada com status 404 se o user com o ID
                            fornecido não for encontrado.
 
         Returns:
@@ -99,7 +97,7 @@ class UsersService:
         user_to_update = session.get(models.Users, id)
 
         if not user_to_update:
-            raise HTTPException(status_code=404, detail="ID não encontrado")
+            raise error.CustomException(404, "ID não encontrado")
 
         # Pega apenas os dados que foram enviados
         update_data = schema.model_dump(exclude_unset=True)
@@ -132,7 +130,7 @@ class UsersService:
                 )
 
         if errors:
-            raise ValidationException(errors)
+            raise error.ValidationException(errors)
 
         # Atualiza os campos no objeto (ativa setters como o de 'password')
         for key, value in update_data.items():
@@ -153,7 +151,7 @@ class UsersService:
             session (Session): Sessão da transação com o banco de dados.
 
         Raises:
-            HTTPException: Lançada com status 404 se o user com o ID
+            CustomException: Lançada com status 404 se o user com o ID
                            fornecido não for encontrado.
 
         Returns:
@@ -162,7 +160,7 @@ class UsersService:
         user_to_delete = session.get(models.Users, id)
 
         if not user_to_delete:
-            raise HTTPException(status_code=404, detail="ID não encontrado")
+            raise error.CustomException(404, "ID não encontrado")
 
         session.delete(user_to_delete)
         session.commit()

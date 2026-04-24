@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
 
 if TYPE_CHECKING:
-    from .roles_model import UserRoles
+    from .user_roles_model import UserRoles
 
 
 class Users(Base):

@@ -55,4 +55,4 @@ def send_email(email_receiver: str, subject: str, body: str) -> any:
                 em.as_string(),
             )
     except smtplib.SMTPException as e:
-        raise error.custom_HTTPException(e)
+        raise error.CustomException(500, "Falha ao enviar e-mail")

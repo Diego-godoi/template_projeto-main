@@ -48,30 +48,25 @@ def create_file(
     - Os tipos de arquivo suportados são definidos pelo enumerador `core.models.FileType`.
 
     """
-    try:
-        filename = save_file(file, type_data)
-        return filename
-    except Exception as e:
-        raise error.error.custom_HTTPException(e)
+
+    filename = save_file(file, type_data)
+    return filename
 
 
 @router.get("/{filename}", response_class=responses.FileResponse)
 def get_file_by_filename(filename: UUID4, Authentication: dict = Security(auth.get_current_payload, scopes=["user"])):
-    try:
-        if os.path.exists(f"{core.settings.UPLOAD_DIR}{str(filename)}"):
-            image = os.path.join(core.settings.UPLOAD_DIR, str(filename))
+    if os.path.exists(f"{settings.UPLOAD_DIR}{str(filename)}"):
+        image = os.path.join(settings.UPLOAD_DIR, str(filename))
 
-            def iterfile():
-                with open(image, mode="rb") as file_like:
-                    yield from file_like
+        def iterfile():
+            with open(image, mode="rb") as file_like:
+                yield from file_like
 
-        else:
-            raise error.CustomException(status_code=404, detail="Imagem nao encontrada")
-    except Exception as e:
-        raise error.error.custom_HTTPException(e)
+    else:
+        raise error.CustomException(status_code=404, detail="Imagem nao encontrada")
     return responses.StreamingResponse(
         iterfile(),
         media_type=magic.from_file(
-            f"{core.settings.UPLOAD_DIR}{str(filename)}", mime=True
+            f"{settings.UPLOAD_DIR}{str(filename)}", mime=True
         ),
     )

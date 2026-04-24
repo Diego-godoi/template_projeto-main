@@ -46,18 +46,18 @@ oauth2_scheme = OAuth2PasswordBearer(
 
 def encode_token(sub, exp: Union[int, float, None] = None) -> str:
     """Codifica um token JWT."""
-    try:
-        if exp is None:
-            exp = settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        payload = {
-            "exp": datetime.datetime.now(tz=datetime.timezone.utc)
-            + datetime.timedelta(minutes=exp),
-            "iat": datetime.datetime.now(tz=datetime.timezone.utc),
-            "sub": sub,
-        }
-        return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
-    except Exception as e:
-        raise error.custom_HTTPException(e)
+    if isinstance(sub, dict):
+        sub = json.dumps(sub)
+
+    if exp is None:
+        exp = settings.ACCESS_TOKEN_EXPIRE_MINUTES
+    payload = {
+        "exp": datetime.datetime.now(tz=datetime.timezone.utc)
+        + datetime.timedelta(minutes=exp),
+        "iat": datetime.datetime.now(tz=datetime.timezone.utc),
+        "sub": sub,
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
 
 
 def _get_user_from_sub(sub: dict, db: Session) -> models.Users:
@@ -89,7 +89,7 @@ def decode_token(
     Importante: scopes são recalculados dinamicamente via BD em toda request.
     """
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms="HS256")
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         raw_sub = payload.get("sub")
         if isinstance(raw_sub, str):
             sub = json.loads(raw_sub)
@@ -97,11 +97,12 @@ def decode_token(
             sub = raw_sub
 
         if not isinstance(sub, dict):
-            raise error.CustomException(401, "Desculpe, o token é inválido.")
+            print(f"DEBUG JWT: sub não é dict, é {type(sub)}")
+            raise error.CustomException(401, f"Desculpe, o token é inválido. Tipo de sub: {type(sub)}")
 
         user = _get_user_from_sub(sub, db)
         role_names = [
-            ur.role.name
+            ur.role.name.lower()
             for ur in (user.user_roles or [])
             if getattr(ur, "role", None) is not None
             and getattr(ur.role, "name", None) is not None
@@ -112,15 +113,20 @@ def decode_token(
             token_scopes = sub.get("scopes", [])
             if not isinstance(token_scopes, list):
                 token_scopes = []
-            if any(scope not in token_scopes for scope in scopes):
+            # Se a rota exige scopes, o usuário deve ter pelo menos UMA delas (Lógica OR)
+            if not any(scope in token_scopes for scope in scopes):
                 raise error.CustomException(401, "Desculpe, você não tem permissão.")
         return sub
+    except error.CustomException:
+        raise
     except jwt.ExpiredSignatureError:
         raise error.CustomException(401, "Desculpe, o token expirou.")
-    except jwt.InvalidTokenError:
-        raise error.CustomException(401, "Desculpe, o token é inválido.")
+    except jwt.InvalidTokenError as e:
+        print(f"DEBUG JWT InvalidTokenError: {e}")
+        raise error.CustomException(401, f"Desculpe, o token é inválido. Erro interno: {str(e)}")
     except Exception as e:
-        raise error.custom_HTTPException(e)
+        print(f"DEBUG JWT Exception: {e}")
+        raise error.CustomException(500, "Erro interno de autenticação")
 
 
 async def get_current_payload(
@@ -129,7 +135,4 @@ async def get_current_payload(
     db: Session = Depends(get_db),
 ) -> dict:
     """Dependency genérica que valida JWT e aplica scopes (OAuth2)."""
-    try:
-        return decode_token(token, db, scopes=list(security_scopes.scopes))
-    except Exception as e:
-        raise error.custom_HTTPException(e)
+    return decode_token(token, db, scopes=list(security_scopes.scopes))

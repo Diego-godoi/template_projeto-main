@@ -1,12 +1,8 @@
 import http
-import logging
-from typing import Any, NoReturn
-
-from fastapi import HTTPException
+from typing import Any
 
 __all__ = [
     "CustomException",
-    "custom_HTTPException",
     "DatabaseException",
     "ValidationException",
 ]
@@ -68,29 +64,3 @@ class ValidationException(ConstructException):
 
     def __init__(self, errors: list[dict]) -> None:
         super().__init__(status_code=422, detail=errors)
-
-
-def custom_HTTPException(e: Any) -> NoReturn:
-    """
-    Função para manipular exceções personalizadas e lançar uma HTTPException
-    com um código de status e uma mensagem de detalhe adequados.
-
-    Exceções sem `status_code` (inesperadas) são logadas como ERROR antes de
-    serem convertidas em HTTP 500, evitando vazar detalhes internos ao cliente.
-
-    Args:
-        e (Any): A exceção a ser manipulada.
-
-    Raises:
-        HTTPException: Sempre levantada — nunca retorna.
-    """
-    if not hasattr(e, "status_code"):
-        logging.error(
-            "Exceção inesperada capturada [%s]: %s",
-            type(e).__name__,
-            str(e),
-        )
-    raise HTTPException(
-        status_code=e.status_code if hasattr(e, "status_code") else 500,
-        detail=e.detail if hasattr(e, "status_code") else "Erro Interno da API",
-    )

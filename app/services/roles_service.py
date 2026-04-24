@@ -1,9 +1,7 @@
 from uuid import UUID
 
-from fastapi import HTTPException
-
 from app.db import _db
-from app.error import ValidationException
+from app import error
 from app.models import Roles
 from app.schema import PatchRoles, PostRoles
 from app.util import QueryParametersDep
@@ -61,7 +59,7 @@ class RolesService:
             )
 
         if errors:
-            raise ValidationException(errors)
+            raise error.ValidationException(errors)
 
         data = Roles(**schema.model_dump())
         session.add(data)
@@ -82,7 +80,7 @@ class RolesService:
             session (_db): Sessão da transação com o banco de dados.
 
         Raises:
-            HTTPException: Lançada com status 404 se a role com o ID
+            CustomException: Lançada com status 404 se a role com o ID
                            fornecido não for encontrada.
 
         Returns:
@@ -91,7 +89,7 @@ class RolesService:
         role_to_update = session.get(Roles, id)
 
         if not role_to_update:
-            raise HTTPException(status_code=404, detail="ID não encontrado")
+            raise error.CustomException(404, "ID não encontrado")
 
         update_data = schema.model_dump(exclude_unset=True)
         errors = []
@@ -110,7 +108,7 @@ class RolesService:
                 )
 
         if errors:
-            raise ValidationException(errors)
+            raise error.ValidationException(errors)
 
         for key, value in update_data.items():
             setattr(role_to_update, key, value)
@@ -130,7 +128,7 @@ class RolesService:
             session (_db): Sessão da transação com o banco de dados.
 
         Raises:
-            HTTPException: Lançada com status 404 se a role com o ID
+            CustomException: Lançada com status 404 se a role com o ID
                            fornecido não for encontrada.
 
         Returns:
@@ -139,7 +137,7 @@ class RolesService:
         role_to_delete = session.get(Roles, id)
 
         if not role_to_delete:
-            raise HTTPException(status_code=404, detail="ID não encontrado")
+            raise error.CustomException(404, "ID não encontrado")
 
         session.delete(role_to_delete)
         session.commit()

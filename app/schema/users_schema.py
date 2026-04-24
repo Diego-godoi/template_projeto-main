@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import Form
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, ConfigDict
 
 from app import util
 from app.error import ValidationException
@@ -130,8 +130,7 @@ class GetUsers(BaseModel):
     full_name: FullName | None = Field(None, description="Nome completo do usuário")
     cpf: str = Field(..., description="CPF do usuário")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PatchUsers(BaseModel):
@@ -223,5 +222,4 @@ class ResponseUsers(BaseModel):
     meta: MetaData
     data: list[GetUsers]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

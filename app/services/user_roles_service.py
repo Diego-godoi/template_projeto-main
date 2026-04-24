@@ -1,10 +1,7 @@
 from uuid import UUID
 
-from fastapi import HTTPException
-
-from app import models
+from app import models, error
 from app.db import _db
-from app.error import ValidationException
 from app.models import UserRoles
 from app.schema import PatchUserRoles, PostUserRoles
 from app.util import QueryParametersDep
@@ -70,7 +67,7 @@ class UserRolesService:
             )
 
         if errors:
-            raise ValidationException(errors)
+            raise error.ValidationException(errors)
 
         data = UserRoles(**schema.model_dump())
         session.add(data)
@@ -91,7 +88,7 @@ class UserRolesService:
             session (_db): Sessão da transação com o banco de dados.
 
         Raises:
-            HTTPException: Lançada com status 404 se a associação com o ID
+            CustomException: Lançada com status 404 se a associação com o ID
                            fornecido não for encontrada.
 
         Returns:
@@ -100,7 +97,7 @@ class UserRolesService:
         item_to_update = session.get(UserRoles, id)
 
         if not item_to_update:
-            raise HTTPException(status_code=404, detail="ID não encontrado")
+            raise error.CustomException(404, "ID não encontrado")
 
         update_data = schema.model_dump(exclude_unset=True)
         errors = []
@@ -128,7 +125,7 @@ class UserRolesService:
             )
 
         if errors:
-            raise ValidationException(errors)
+            raise error.ValidationException(errors)
 
         for key, value in update_data.items():
             setattr(item_to_update, key, value)
@@ -148,7 +145,7 @@ class UserRolesService:
             session (_db): Sessão da transação com o banco de dados.
 
         Raises:
-            HTTPException: Lançada com status 404 se a associação com o ID
+            CustomException: Lançada com status 404 se a associação com o ID
                            fornecido não for encontrada.
 
         Returns:
@@ -157,7 +154,7 @@ class UserRolesService:
         item_to_delete = session.get(UserRoles, id)
 
         if not item_to_delete:
-            raise HTTPException(status_code=404, detail="ID não encontrado")
+            raise error.CustomException(404, "ID não encontrado")
 
         session.delete(item_to_delete)
         session.commit()

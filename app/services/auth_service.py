@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 
-from app import auth, core, error, models, schema, util
+from app import core, error, models, schema, util
 from app.db import _db
+from app.util import normalize_lower
 
 
 class AuthService:
@@ -17,7 +18,7 @@ class AuthService:
         Obs: `sub` contém scopes, mas a autorização é dinâmica porque o
         `decode_token()` recalcula scopes com base no BD em toda request.
         """
-        username_normalizado = (username or "").strip().lower()
+        username_normalizado = normalize_lower(username)
         if not username_normalizado:
             raise error.CustomException(400, "Email ou Senha invalidos")
 
@@ -30,7 +31,7 @@ class AuthService:
             raise error.CustomException(401, "Usuario Inativo")
 
         role_names = [
-            ur.role.name
+            ur.role.name.lower()
             for ur in (user.user_roles or [])
             if getattr(ur, "role", None) is not None
             and getattr(ur.role, "name", None) is not None

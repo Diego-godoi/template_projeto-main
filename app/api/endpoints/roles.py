@@ -30,10 +30,7 @@ def get_roles(
     Returns:
         Retorna os dados da consulta em lista do schema `GetRoles`.
     """
-    try:
-        return RolesService.get_roles(query_parameters, session)
-    except Exception as e:
-        raise error.custom_HTTPException(e)
+    return RolesService.get_roles(query_parameters, session)
 
 
 @router.post("/", response_model=schema.GetRoles, status_code=status.HTTP_201_CREATED)
@@ -54,10 +51,7 @@ def create_roles(
     Returns:
         GetRoles: Retorna o dado com as informaçoes de criaçao atualizadas.
     """
-    try:
-        return RolesService.create_role(json_data, session)
-    except Exception as e:
-        raise error.custom_HTTPException(e)
+    return RolesService.create_role(json_data, session)
 
 
 @router.patch("/{id}", response_model=schema.GetRoles, status_code=status.HTTP_200_OK)
@@ -80,10 +74,7 @@ def update_roles_by_id(
     Returns:
         schema.GetRoles: Retorna os dado com as informaçoes atualizadas.
     """
-    try:
-        return RolesService.patch_role(id, json_data, session)
-    except Exception as e:
-        raise error.custom_HTTPException(e)
+    return RolesService.patch_role(id, json_data, session)
 
 
 @router.delete("/{id}")
@@ -104,9 +95,5 @@ def delete_roles_by_id(
     Returns:
         None: "No content"
     """
-    try:
-        RolesService.delete_role(id, session)
-
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except Exception as e:
-        raise error.custom_HTTPException(e)
+    RolesService.delete_role(id, session)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

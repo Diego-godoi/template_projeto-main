@@ -1,12 +1,11 @@
+from email import errors
 from uuid import UUID
 
 from fastapi import Form
-from pydantic import BaseModel, Field, model_validator
-
-from app import error
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from app import error, util
 
 from .base_schema import MetaData
-from .types_annotated import *
 
 __all__ = [
     "PostRoles",
@@ -35,23 +34,29 @@ class PostRoles(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def validators_roles(self, data) -> "PostRoles":
+        errors =[]
         try:
-            if "name" not in data:
-                raise error.CustomException(
-                    422,
-                    "É necessário informar o name para prosseguir.",
-                )
-            ...
-            return data
+            data["name"] = util.normalize_capitalize(data["name"])
         except Exception as e:
-            raise error.custom_HTTPException(e)
+             errors.append(
+                {
+                    "loc": ["body", "name"],
+                    "msg": e.detail if hasattr(e, "detail") else str(e),
+                    "type": "value_error",
+                }
+            )
+
+        if errors:
+            raise error.ValidationException(errors)
+
+        return data
 
     @classmethod
     def as_form(
         cls,
-        name: str = Form(..., description="name Documentar"),
-        access_level: int = Form(..., description="access_level Documentar"),
-        description: str | None = Form(None, description="description Documentar"),
+        name: str = Form(..., description="Nome do papel"),
+        access_level: int = Form(..., description="Nível numérico de acesso"),
+         description: str | None = Form(None, description="Descrição detalhada das responsabilidades"),
     ):
         return cls(
             name=name,
@@ -76,8 +81,7 @@ class GetRoles(BaseModel):
     description: str | None = Field(None, description="Descrição do papel")
     id: UUID = Field(..., description="Identificador único (UUID)")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PatchRoles(BaseModel):
@@ -90,8 +94,8 @@ class PatchRoles(BaseModel):
         description (str | None): Nova descrição.
     """
 
-    name: str = Field(None, description="Novo nome do papel")
-    access_level: int = Field(None, description="Novo nível de acesso")
+    name: str | None = Field(None, description="Novo nome do papel")
+    access_level: int | None = Field(None, description="Novo nível de acesso")
     description: str | None = Field(None, description="Nova descrição")
 
 
@@ -99,5 +103,4 @@ class ResponseRoles(BaseModel):
     meta: MetaData
     data: list[GetRoles]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

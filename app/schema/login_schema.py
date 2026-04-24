@@ -1,5 +1,5 @@
 from fastapi import Form
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, ConfigDict
 
 from app import error
 
@@ -41,12 +41,22 @@ class Login(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def validators_user(self, data):
+        errors = []
         try:
             data["username"] = data["username"].lower()
 
             return data
         except Exception as e:
-            raise error.custom_HTTPException(e)
+            errors.append({
+                "loc": ["body", "username"],
+                "msg": e.detail if hasattr(e, "detail") else str(e),
+                "type": "value_error",
+            })
+
+        if errors:
+            raise error.ValidationException(errors)
+
+        return data
 
 
 class LoginResponse(BaseModel):
@@ -54,15 +64,14 @@ class LoginResponse(BaseModel):
     token_type: str
     user: GetUsers
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ForgotPassword(BaseModel):
     """
     Schema para solicitação de recuperação de senha.
 
-    Attributes:
+    Attributes: 
         email (Email): E-mail da conta que deseja recuperar.
     """
 
@@ -72,8 +81,7 @@ class ForgotPassword(BaseModel):
 class ForgotPasswordResponse(BaseModel):
     message: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ResetPassword(BaseModel):

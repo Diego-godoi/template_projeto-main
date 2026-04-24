@@ -28,19 +28,18 @@ def post_login(
     session: _db,
 ):
     """Logar"""
-    try:
-        user, sub = AuthService.login(login.username, login.password, session)
 
-        token = auth.encode_token(
-            sub,
-            core.settings.ACCESS_TOKEN_EXPIRE_MINUTES,
-        )
-        response = schema.LoginResponse(
+    user, sub = AuthService.login(login.username, login.password, session)
+
+    token = auth.encode_token(
+        sub,
+        core.settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+    )
+    response = schema.LoginResponse(
             access_token=token, token_type="Bearer", user=user
         )
-        return response
-    except Exception as e:
-        raise error.custom_HTTPException(e)
+    return response
+
 
 
 @router.post("/forgot-my-password/", response_model=schema.ForgotPasswordResponse)
@@ -52,17 +51,14 @@ async def forgot_my_password(
     session: _db,
 ):
     """Esqueci minha senha"""
-    try:
-        message, email_payload = AuthService.request_password_reset(
+    message, email_payload = AuthService.request_password_reset(
             email.email, session
         )
-        if email_payload:
-            to, subject, body = email_payload
-            background_tasks.add_task(util.send_email, to, subject, body)
+    if email_payload:
+        to, subject, body = email_payload
+        background_tasks.add_task(util.send_email, to, subject, body)
 
-        return schema.ForgotPasswordResponse(message=message)
-    except Exception as e:
-        raise error.custom_HTTPException(e)
+    return schema.ForgotPasswordResponse(message=message)
 
 
 @router.put("/new-password/")
@@ -71,7 +67,4 @@ def put_password(
     session: _db,
 ):
     """Altera a senha do usuario"""
-    try:
-        return AuthService.reset_password(data, session)
-    except Exception as e:
-        raise error.custom_HTTPException(e)
+    return AuthService.reset_password(data, session)

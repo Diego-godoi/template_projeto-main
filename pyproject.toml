@@ -2,9 +2,9 @@
 name = "Template"
 version = "1.0"
 description = "Descrição sobre o projeto"
-authors = ["Michael Lopes Ferreira <michael.lopes@unemat.br>"]
+authors = ["Diego Godoi Martins <diegogodoimartins.11@gmail.com>"]
 readme = "README.md"
-packages = [{include = "template"}]
+packages = [{include = "app"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
