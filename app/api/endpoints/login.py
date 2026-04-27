@@ -36,13 +36,14 @@ def post_login(
         core.settings.ACCESS_TOKEN_EXPIRE_MINUTES,
     )
     response = schema.LoginResponse(
-            access_token=token, token_type="Bearer", user=user
-        )
+        access_token=token, token_type="Bearer", user=user
+    )
     return response
 
 
-
-@router.post("/forgot-my-password/", response_model=schema.ForgotPasswordResponse)
+@router.post(
+    "/forgot-my-password/", response_model=schema.ForgotPasswordResponse
+)
 @limiter.limit("3/minute")
 async def forgot_my_password(
     request: Request,
@@ -52,8 +53,8 @@ async def forgot_my_password(
 ):
     """Esqueci minha senha"""
     message, email_payload = AuthService.request_password_reset(
-            email.email, session
-        )
+        email.email, session
+    )
     if email_payload:
         to, subject, body = email_payload
         background_tasks.add_task(util.send_email, to, subject, body)

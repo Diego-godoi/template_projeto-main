@@ -19,11 +19,12 @@ router = APIRouter(prefix="/users", tags=["Users"])
 def get_users(
     query_parameters: QueryParametersDep,
     session: _db,
-    Authentication: dict = Security(auth.get_current_payload, scopes=["user", "admin"]),
+    Authentication: dict = Security(
+        auth.get_current_payload, scopes=["user", "admin"]
+    ),
 ) -> schema.ResponseUsers:
     """Realiza requisiçoes tipo **GET** em **Users** models"""
     return UsersService.get_users(query_parameters, session)
-
 
 
 @router.post(

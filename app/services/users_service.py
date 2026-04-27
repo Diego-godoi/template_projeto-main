@@ -2,9 +2,8 @@
 
 from uuid import UUID
 
-from app import models, schema
+from app import error, models, schema
 from app.db import _db
-from app import error
 from app.util import QueryParametersDep
 
 
@@ -48,7 +47,9 @@ class UsersService:
         """
         errors = []
 
-        if models.Users.get(_db=session, attribute="email", value=schema.email):
+        if models.Users.get(
+            _db=session, attribute="email", value=schema.email
+        ):
             errors.append(
                 {
                     "loc": ["body", "email"],

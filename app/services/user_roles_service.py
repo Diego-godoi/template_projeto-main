@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from app import models, error
+from app import error, models
 from app.db import _db
 from app.models import UserRoles
 from app.schema import PatchUserRoles, PostUserRoles

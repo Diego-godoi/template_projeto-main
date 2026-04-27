@@ -150,7 +150,9 @@ def test_normalize_phone_invalido():
 
 
 def test_normalize_email_valido():
-    assert validators.normalize_email("TeStE@exAmple.com") == "teste@example.com"
+    assert (
+        validators.normalize_email("TeStE@exAmple.com") == "teste@example.com"
+    )
     assert validators.normalize_email("") == ""
     assert validators.normalize_email(None) is None
 

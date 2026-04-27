@@ -32,8 +32,12 @@ class Users(Base):
     cpf: Mapped[str] = mapped_column(String(11), unique=True)
     password: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
-    reset_password_code: Mapped[str] = mapped_column(String(100), nullable=True)
-    reset_password_expiration: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    reset_password_code: Mapped[str] = mapped_column(
+        String(100), nullable=True
+    )
+    reset_password_expiration: Mapped[datetime] = mapped_column(
+        DateTime, nullable=True
+    )
 
     # Relationships
     user_roles: Mapped[list["UserRoles"]] = relationship(

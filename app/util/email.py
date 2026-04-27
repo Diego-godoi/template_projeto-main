@@ -45,10 +45,14 @@ def send_email(email_receiver: str, subject: str, body: str) -> any:
         em["Subject"] = subject
         em["To"] = email_receiver
 
-        with smtplib.SMTP("smtp.gmail.com", core.settings.SMTP_PORT, timeout=5) as smtp:
+        with smtplib.SMTP(
+            "smtp.gmail.com", core.settings.SMTP_PORT, timeout=5
+        ) as smtp:
             smtp.ehlo()
             smtp.starttls()
-            smtp.login(core.settings.EMAILS_FROM_EMAIL, core.settings.SMTP_PASSWORD)
+            smtp.login(
+                core.settings.EMAILS_FROM_EMAIL, core.settings.SMTP_PASSWORD
+            )
             smtp.sendmail(
                 core.settings.EMAILS_FROM_EMAIL,
                 email_receiver,

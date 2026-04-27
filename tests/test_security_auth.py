@@ -32,7 +32,10 @@ def test_verify_password_bytes_support():
     hashed = security.get_password_hash(plain_password)
 
     # Valida match mesmo que o plain_password seja mantido em bytes (a doc do security permite)
-    assert security.verify_password(plain_password, hashed.encode("utf-8")) is True
+    assert (
+        security.verify_password(plain_password, hashed.encode("utf-8"))
+        is True
+    )
 
 
 @patch("app.core.security.bcrypt.checkpw")
@@ -108,7 +111,7 @@ def test_decode_token_usuario_desativado_ou_nao_encontrado(db_session):
     sub = {"user_id": fake_uuid}
     token = auth.encode_token(sub, exp=15)
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(error.CustomException) as exc:
         auth.decode_token(token, db_session)
 
     assert exc.value.status_code == 401
@@ -121,8 +124,10 @@ def test_decode_token_restricao_de_scopes(db_session):
     from tests.test_users_service import _criar_usuario
 
     user, _ = _criar_usuario(db_session)
-    role_manager = _criar_role(db_session, name="manager", access_level=2)
+    role_user = _criar_role(db_session, name="user")
+    role_manager = _criar_role(db_session, name="manager")
 
+    user.user_roles.append(UserRoles(role_id=str(role_user.id)))
     user.user_roles.append(UserRoles(role_id=str(role_manager.id)))
     db_session.commit()
 
@@ -137,7 +142,7 @@ def test_decode_token_restricao_de_scopes(db_session):
     assert "manager" in decoded_manager["scopes"]
 
     # Não deve permitir admin
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(error.CustomException) as exc:
         auth.decode_token(token, db_session, scopes=["admin"])
 
     assert exc.value.status_code == 401

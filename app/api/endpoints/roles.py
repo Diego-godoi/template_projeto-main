@@ -33,11 +33,15 @@ def get_roles(
     return RolesService.get_roles(query_parameters, session)
 
 
-@router.post("/", response_model=schema.GetRoles, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/", response_model=schema.GetRoles, status_code=status.HTTP_201_CREATED
+)
 def create_roles(
     json_data: schema.PostRoles,
     session: _db,
-    Authentication: dict = Security(auth.get_current_payload, scopes=["admin"]),
+    Authentication: dict = Security(
+        auth.get_current_payload, scopes=["admin"]
+    ),
 ) -> schema.GetRoles:
     """Recebe uma requisição tipo `POST` contendo dados referente a **Roles**
 
@@ -54,12 +58,16 @@ def create_roles(
     return RolesService.create_role(json_data, session)
 
 
-@router.patch("/{id}", response_model=schema.GetRoles, status_code=status.HTTP_200_OK)
+@router.patch(
+    "/{id}", response_model=schema.GetRoles, status_code=status.HTTP_200_OK
+)
 def update_roles_by_id(
     id: UUID4,
     json_data: schema.PatchRoles,
     session: _db,
-    Authentication: dict = Security(auth.get_current_payload, scopes=["admin"]),
+    Authentication: dict = Security(
+        auth.get_current_payload, scopes=["admin"]
+    ),
 ) -> schema.GetRoles:
     """Atualiza um dado na tabela **Roles** a partir de um UUID valido
 
@@ -81,7 +89,9 @@ def update_roles_by_id(
 def delete_roles_by_id(
     id: UUID4,
     session: _db,
-    Authentication: dict = Security(auth.get_current_payload, scopes=["admin"]),
+    Authentication: dict = Security(
+        auth.get_current_payload, scopes=["admin"]
+    ),
 ):
     """Deleta um dado na tabela **Roles** a partir do seu UUID
 

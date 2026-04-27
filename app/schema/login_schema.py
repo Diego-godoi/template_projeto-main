@@ -1,5 +1,5 @@
 from fastapi import Form
-from pydantic import BaseModel, Field, model_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app import error
 
@@ -47,11 +47,13 @@ class Login(BaseModel):
 
             return data
         except Exception as e:
-            errors.append({
-                "loc": ["body", "username"],
-                "msg": e.detail if hasattr(e, "detail") else str(e),
-                "type": "value_error",
-            })
+            errors.append(
+                {
+                    "loc": ["body", "username"],
+                    "msg": e.detail if hasattr(e, "detail") else str(e),
+                    "type": "value_error",
+                }
+            )
 
         if errors:
             raise error.ValidationException(errors)
@@ -71,7 +73,7 @@ class ForgotPassword(BaseModel):
     """
     Schema para solicitação de recuperação de senha.
 
-    Attributes: 
+    Attributes:
         email (Email): E-mail da conta que deseja recuperar.
     """
 

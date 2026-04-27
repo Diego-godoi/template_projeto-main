@@ -1,4 +1,3 @@
-
 from app.core import security
 from tests.test_users_service import _criar_usuario
 
@@ -34,29 +33,37 @@ def test_post_login_credenciais_incorretas(client, db_session):
 def test_forgot_my_password_retorna_mensagens_iguais_para_impedir_enum_de_emails(
     client, db_session
 ):
-    user, _ = _criar_usuario(db_session)
+    from unittest.mock import patch
 
-    # 1. Envia com email EXISTENTE
-    response_existente = client.post(
-        "/api/v1/forgot-my-password/", json={"email": user.email}
-    )
+    with patch("app.util.send_email") as mock_send:
+        user, _ = _criar_usuario(db_session)
 
-    assert response_existente.status_code == 200
-    assert "instruções serão enviadas" in response_existente.json()["message"]
+        # 1. Envia com email EXISTENTE
+        response_existente = client.post(
+            "/api/v1/forgot-my-password/", json={"email": user.email}
+        )
 
-    # O user ganha um código de redefinição
-    db_session.refresh(user)
-    assert user.reset_password_code is not None
-    assert user.reset_password_expiration is not None
+        assert response_existente.status_code == 200
+        assert (
+            "instruções serão enviadas" in response_existente.json()["message"]
+        )
 
-    # 2. Envia com email INEXISTENTE
-    response_fake = client.post(
-        "/api/v1/forgot-my-password/",
-        json={"email": "nao_cadastrado@teste.com"},
-    )
+        # O user ganha um código de redefinição
+        db_session.refresh(user)
+        assert user.reset_password_code is not None
+        assert user.reset_password_expiration is not None
 
-    assert response_fake.status_code == 200
-    assert "instruções serão enviadas" in response_fake.json()["message"]
+        # 2. Envia com email INEXISTENTE
+        response_fake = client.post(
+            "/api/v1/forgot-my-password/",
+            json={"email": "nao_cadastrado@teste.com"},
+        )
+
+        assert response_fake.status_code == 200
+        assert "instruções serão enviadas" in response_fake.json()["message"]
+
+        # Garante que o e-mail foi "enviado" apenas para o usuário que existe
+        assert mock_send.call_count == 1
 
 
 def test_new_password_com_sucesso_e_expiracao(client, db_session):

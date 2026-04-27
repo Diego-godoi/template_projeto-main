@@ -1,7 +1,7 @@
 from uuid import UUID
 
-from app.db import _db
 from app import error
+from app.db import _db
 from app.models import Roles
 from app.schema import PatchRoles, PostRoles
 from app.util import QueryParametersDep

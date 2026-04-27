@@ -11,8 +11,7 @@ from faker import Faker
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app import schema
-from app.error import ValidationException
+from app import error, schema
 from app.services.users_service import UsersService
 
 fake = Faker("pt_BR")
@@ -70,7 +69,7 @@ def test_cria_usuario_email_duplicado_levanta_erro(db_session: Session):
     cpf_novo = fake.cpf().replace(".", "").replace("-", "")
     post_duplicado = _make_post_schema(email=post.email, cpf=cpf_novo)
 
-    with pytest.raises(ValidationException) as exc_info:
+    with pytest.raises(error.ValidationException) as exc_info:
         UsersService.create_user(post_duplicado, db_session)
 
     erros = exc_info.value.detail
@@ -84,7 +83,7 @@ def test_cria_usuario_cpf_duplicado_levanta_erro(db_session: Session):
 
     post_duplicado = _make_post_schema(cpf=post.cpf)
 
-    with pytest.raises(ValidationException) as exc_info:
+    with pytest.raises(error.ValidationException) as exc_info:
         UsersService.create_user(post_duplicado, db_session)
 
     erros = exc_info.value.detail
@@ -116,7 +115,7 @@ def test_patch_usuario_id_inexistente_levanta_404(db_session: Session):
     id_falso = uuid.uuid4()
     patch = schema.PatchUsers(full_name="Qualquer Nome")
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(error.CustomException) as exc_info:
         UsersService.patch_user(id_falso, patch, db_session)
 
     assert exc_info.value.status_code == 404
@@ -144,7 +143,7 @@ def test_delete_usuario_id_inexistente_levanta_404(db_session: Session):
 
     id_falso = uuid.uuid4()
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(error.CustomException) as exc_info:
         UsersService.delete_user(id_falso, db_session)
 
     assert exc_info.value.status_code == 404

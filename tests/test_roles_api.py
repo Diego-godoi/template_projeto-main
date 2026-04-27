@@ -19,12 +19,12 @@ def test_roles_crud_fluxo_completo(client: TestClient):
     try:
         # 1. Post (Create)
         role_name = "Gerente de Projeto " + fake.word()
-        payload = {"name": role_name, "access_level": 5, "description": "Desc"}
+        payload = {"name": role_name, "description": "Desc"}
 
         resp_post = client.post(f"{API_PREFIX}/roles/", json=payload)
         assert resp_post.status_code == 201
         data = resp_post.json()
-        assert data["name"] == role_name
+        assert data["name"].lower() == role_name.lower()
         role_id = data["id"]
 
         # 2. Get (Read list)
@@ -37,7 +37,9 @@ def test_roles_crud_fluxo_completo(client: TestClient):
         # 3. Patch (Update)
         novo_nome = "DIRETOR GERAL " + fake.word()
         patch_payload = {"name": novo_nome}
-        resp_patch = client.patch(f"{API_PREFIX}/roles/{role_id}", json=patch_payload)
+        resp_patch = client.patch(
+            f"{API_PREFIX}/roles/{role_id}", json=patch_payload
+        )
         assert resp_patch.status_code == 200
         assert resp_patch.json()["name"] == novo_nome
 
@@ -47,7 +49,9 @@ def test_roles_crud_fluxo_completo(client: TestClient):
 
         # Confirma remoção
         resp_get_after = client.get(f"{API_PREFIX}/roles/")
-        assert not any(r["id"] == role_id for r in resp_get_after.json()["data"])
+        assert not any(
+            r["id"] == role_id for r in resp_get_after.json()["data"]
+        )
 
     finally:
         app.dependency_overrides.pop(get_current_payload, None)

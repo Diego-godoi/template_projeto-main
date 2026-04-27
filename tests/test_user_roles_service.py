@@ -5,7 +5,7 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.error import ValidationException
+from app import error, models
 from app.models import UserRoles
 from app.schema import PatchUserRoles, PostUserRoles
 from app.services.user_roles_service import UserRolesService
@@ -36,7 +36,7 @@ def test_create_user_role_referencias_invalidas_levanta_erro(
 ):
     schema = PostUserRoles(user_id=uuid4(), role_id=uuid4())
 
-    with pytest.raises(ValidationException) as exc_info:
+    with pytest.raises(error.ValidationException) as exc_info:
         UserRolesService.create_user_role(schema, db_session)
 
     errors = exc_info.value.detail
@@ -51,7 +51,7 @@ def test_patch_user_role_com_sucesso(db_session: Session):
 
     # Vamos criar outra role para tentar alterar via patch
     new_role = _criar_role(
-        db_session, name=f"R_Patch_{str(user_role.id)[:10]}", access_level=5
+        db_session, name=f"R_Patch_{str(user_role.id)[:10]}"
     )
 
     schema_patch = PatchUserRoles(role_id=new_role.id)
@@ -69,8 +69,10 @@ def test_patch_user_role_referencias_invalidas_levanta_erro(
 
     schema_patch = PatchUserRoles(user_id=uuid4(), role_id=uuid4())
 
-    with pytest.raises(ValidationException) as exc_info:
-        UserRolesService.patch_user_role(user_role.id, schema_patch, db_session)
+    with pytest.raises(error.ValidationException) as exc_info:
+        UserRolesService.patch_user_role(
+            user_role.id, schema_patch, db_session
+        )
 
     errors = exc_info.value.detail
     assert len(errors) == 2
@@ -79,7 +81,7 @@ def test_patch_user_role_referencias_invalidas_levanta_erro(
 def test_patch_user_role_id_inexistente_levanta_404(db_session: Session):
     schema_patch = PatchUserRoles(active=False)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(error.CustomException) as exc_info:
         UserRolesService.patch_user_role(uuid4(), schema_patch, db_session)
 
     assert exc_info.value.status_code == 404
@@ -96,7 +98,7 @@ def test_delete_user_role_com_sucesso(db_session: Session):
 
 
 def test_delete_user_role_id_inexistente_levanta_404(db_session: Session):
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(error.CustomException) as exc_info:
         UserRolesService.delete_user_role(uuid4(), db_session)
 
     assert exc_info.value.status_code == 404

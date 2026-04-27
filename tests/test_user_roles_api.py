@@ -53,7 +53,9 @@ def test_user_roles_crud_fluxo_completo(client: TestClient, db_session):
 
         # Consulta não tem mais o vínculo
         resp_get_after = client.get(f"{API_PREFIX}/user-roles/")
-        assert not any(ur["id"] == ur_id for ur in resp_get_after.json()["data"])
+        assert not any(
+            ur["id"] == ur_id for ur in resp_get_after.json()["data"]
+        )
 
     finally:
         app.dependency_overrides.pop(get_current_payload, None)

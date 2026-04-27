@@ -9,7 +9,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app import api, core
 from app.core.limiter import limiter
-from app.error import DatabaseException, ValidationException, CustomException
+from app.error import CustomException, DatabaseException, ValidationException
 
 if core.settings.DEBUG:
     app = FastAPI(title=core.settings.PROJECT_NAME)
@@ -33,7 +33,9 @@ app.add_middleware(
 
 
 @app.exception_handler(ValidationException)
-async def validation_exception_handler(request: Request, exc: ValidationException):
+async def validation_exception_handler(
+    request: Request, exc: ValidationException
+):
     """
     Captura erros de validação acumulados e retorna todos de uma vez
     no formato padrão do FastAPI/Pydantic.
@@ -50,7 +52,9 @@ async def database_exception_handler(request: Request, exc: DatabaseException):
     Captura falhas críticas lançadas pela camada do banco de dados e as traduz
     para o requisitante de forma protegida, evitando vazamento arquitetural na stacktrace.
     """
-    logging.error(f"Erro no BD detectado pela requisição {request.url}: {exc.detail}")
+    logging.error(
+        f"Erro no BD detectado pela requisição {request.url}: {exc.detail}"
+    )
 
     # Podemos suprimir e mascarar os detalhes internos do banco para o usuário final
     return JSONResponse(
@@ -60,13 +64,16 @@ async def database_exception_handler(request: Request, exc: DatabaseException):
         },
     )
 
+
 @app.exception_handler(CustomException)
 async def custom_exception_handler(request: Request, exc: CustomException):
     """
     Captura exceções personalizadas e as traduz
     para o requisitante de forma protegida, evitando vazamento arquitetural na stacktrace.
     """
-    logging.error(f"Erro personalizado detectado pela requisição {request.url}: {exc.detail}")
+    logging.error(
+        f"Erro personalizado detectado pela requisição {request.url}: {exc.detail}"
+    )
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail},

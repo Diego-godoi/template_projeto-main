@@ -3,9 +3,16 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
+from app.auth import get_current_payload
 from app.core.config import settings
+from app.main import app
 
 API_PREFIX = settings.API_URL_PREFIX
+
+
+# Mock para by-pass na autenticação (user)
+async def override_user():
+    return {"user_id": "test", "scopes": ["user"]}
 
 
 @pytest.fixture
@@ -23,12 +30,16 @@ def override_upload_dir(tmp_path):
 
 
 def test_post_file_success(client: TestClient, override_upload_dir):
-    # Simular um arquivo em memória
-    file_content = b"Conteudo teste da API"
-    files = {"file": ("test_api.txt", file_content, "text/plain")}
-    data = {"type_data": "text"}
+    app.dependency_overrides[get_current_payload] = override_user
+    try:
+        # Simular um arquivo em memória
+        file_content = b"Conteudo teste da API"
+        files = {"file": ("test_api.txt", file_content, "text/plain")}
+        data = {"type_data": "text"}
 
-    response = client.post(f"{API_PREFIX}/file/", files=files, data=data)
+        response = client.post(f"{API_PREFIX}/file/", files=files, data=data)
+    finally:
+        app.dependency_overrides.pop(get_current_payload, None)
 
     assert response.status_code == 200
     filename = response.json()
@@ -42,27 +53,37 @@ def test_post_file_success(client: TestClient, override_upload_dir):
 
 
 def test_get_file_by_filename_success(client: TestClient, override_upload_dir):
-    import uuid
+    app.dependency_overrides[get_current_payload] = override_user
+    try:
+        import uuid
 
-    # Cria arquivo mockado manualmente
-    mock_filename = str(uuid.uuid4())
-    filepath = os.path.join(override_upload_dir, mock_filename)
-    with open(filepath, "wb") as f:
-        f.write(b"Conteudo Mockado GET")
+        # Cria arquivo mockado manualmente
+        mock_filename = str(uuid.uuid4())
+        filepath = os.path.join(override_upload_dir, mock_filename)
+        with open(filepath, "wb") as f:
+            f.write(b"Conteudo Mockado GET")
 
-    # Faz o get pelo UUID
-    response = client.get(f"{API_PREFIX}/file/{mock_filename}")
+        # Faz o get pelo UUID
+        response = client.get(f"{API_PREFIX}/file/{mock_filename}")
+    finally:
+        app.dependency_overrides.pop(get_current_payload, None)
 
     assert response.status_code == 200
     assert response.content == b"Conteudo Mockado GET"
 
 
-def test_get_file_by_filename_not_found(client: TestClient, override_upload_dir):
-    import uuid
+def test_get_file_by_filename_not_found(
+    client: TestClient, override_upload_dir
+):
+    app.dependency_overrides[get_current_payload] = override_user
+    try:
+        import uuid
 
-    fail_filename = str(uuid.uuid4())  # ID válido mas arquivo Inexistente
+        fail_filename = str(uuid.uuid4())  # ID válido mas arquivo Inexistente
 
-    response = client.get(f"{API_PREFIX}/file/{fail_filename}")
+        response = client.get(f"{API_PREFIX}/file/{fail_filename}")
+    finally:
+        app.dependency_overrides.pop(get_current_payload, None)
 
     assert response.status_code == 404
     assert "Imagem nao encontrada" in response.json()["detail"]

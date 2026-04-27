@@ -5,18 +5,24 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.error import ValidationException
+from app import error
 from app.models import Roles
 from app.schema import PatchRoles, PostRoles
 from app.services.roles_service import RolesService
 from app.util.annotated import QueryParameters
 
 
-def _criar_role(db_session: Session, name="Admin", access_level=1) -> Roles:
+def _criar_role(db_session: Session, name="Admin") -> Roles:
     """Fixture auxiliar para criar um papel direto pelo Service."""
-    schema = PostRoles(name=name, access_level=access_level)
+    # O schema aplica capitalização automática (ex: user -> User)
+    from app import util
+
+    normalized_name = util.normalize_capitalize(name)
+    schema = PostRoles(name=name)
     # Tenta resgatar se já existe no banco temporal para não violar DB durante tests massivos
-    existing = Roles.get(_db=db_session, attribute="name", value=name)
+    existing = Roles.get(
+        _db=db_session, attribute="name", value=normalized_name
+    )
     if existing:
         return existing
 
@@ -24,17 +30,16 @@ def _criar_role(db_session: Session, name="Admin", access_level=1) -> Roles:
 
 
 def test_create_role_com_sucesso(db_session: Session):
-    role = _criar_role(db_session, name="Vendedor", access_level=2)
+    role = _criar_role(db_session, name="Vendedor")
     assert role.id is not None
     assert role.name == "Vendedor"
-    assert role.access_level == 2
 
 
 def test_create_role_nome_duplicado_levanta_erro(db_session: Session):
     _criar_role(db_session, name="Gerente")
 
-    schema_duplicado = PostRoles(name="Gerente", access_level=3)
-    with pytest.raises(ValidationException) as exc_info:
+    schema_duplicado = PostRoles(name="Gerente")
+    with pytest.raises(error.ValidationException) as exc_info:
         RolesService.create_role(schema_duplicado, db_session)
 
     errors = exc_info.value.detail
@@ -43,12 +48,14 @@ def test_create_role_nome_duplicado_levanta_erro(db_session: Session):
 
 
 def test_patch_role_com_sucesso(db_session: Session):
-    role = _criar_role(db_session, name="Supervisor", access_level=4)
+    role = _criar_role(db_session, name="Supervisor")
 
-    schema_patch = PatchRoles(access_level=5)
-    role_atualizada = RolesService.patch_role(role.id, schema_patch, db_session)
+    schema_patch = PatchRoles(description="Nova desc")
+    role_atualizada = RolesService.patch_role(
+        role.id, schema_patch, db_session
+    )
 
-    assert role_atualizada.access_level == 5
+    assert role_atualizada.description == "Nova desc"
     assert role_atualizada.name == "Supervisor"  # Não alterado
 
 
@@ -58,7 +65,7 @@ def test_patch_role_nome_duplicado_levanta_erro(db_session: Session):
 
     # Tenta atualizar role2 para ter o nome da role1
     schema_patch = PatchRoles(name="Role1")
-    with pytest.raises(ValidationException) as exc_info:
+    with pytest.raises(error.ValidationException) as exc_info:
         RolesService.patch_role(role2.id, schema_patch, db_session)
 
     errors = exc_info.value.detail
@@ -67,7 +74,7 @@ def test_patch_role_nome_duplicado_levanta_erro(db_session: Session):
 
 def test_patch_role_id_inexistente_levanta_404(db_session: Session):
     schema_patch = PatchRoles(name="RoleFantasma")
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(error.CustomException) as exc_info:
         RolesService.patch_role(uuid4(), schema_patch, db_session)
 
     assert exc_info.value.status_code == 404
@@ -84,7 +91,7 @@ def test_delete_role_com_sucesso(db_session: Session):
 
 
 def test_delete_role_id_inexistente_levanta_404(db_session: Session):
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(error.CustomException) as exc_info:
         RolesService.delete_role(uuid4(), db_session)
 
     assert exc_info.value.status_code == 404

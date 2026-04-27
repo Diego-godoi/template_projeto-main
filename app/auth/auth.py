@@ -97,8 +97,9 @@ def decode_token(
             sub = raw_sub
 
         if not isinstance(sub, dict):
-            print(f"DEBUG JWT: sub não é dict, é {type(sub)}")
-            raise error.CustomException(401, f"Desculpe, o token é inválido. Tipo de sub: {type(sub)}")
+            raise error.CustomException(
+                401, f"Desculpe, o token é inválido. Tipo de sub: {type(sub)}"
+            )
 
         user = _get_user_from_sub(sub, db)
         role_names = [
@@ -115,17 +116,19 @@ def decode_token(
                 token_scopes = []
             # Se a rota exige scopes, o usuário deve ter pelo menos UMA delas (Lógica OR)
             if not any(scope in token_scopes for scope in scopes):
-                raise error.CustomException(401, "Desculpe, você não tem permissão.")
+                raise error.CustomException(
+                    401, "Desculpe, você não tem permissão."
+                )
         return sub
     except error.CustomException:
         raise
     except jwt.ExpiredSignatureError:
         raise error.CustomException(401, "Desculpe, o token expirou.")
     except jwt.InvalidTokenError as e:
-        print(f"DEBUG JWT InvalidTokenError: {e}")
-        raise error.CustomException(401, f"Desculpe, o token é inválido. Erro interno: {str(e)}")
-    except Exception as e:
-        print(f"DEBUG JWT Exception: {e}")
+        raise error.CustomException(
+            401, f"Desculpe, o token é inválido. Erro interno: {str(e)}"
+        )
+    except Exception:
         raise error.CustomException(500, "Erro interno de autenticação")
 
 

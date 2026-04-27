@@ -32,7 +32,7 @@ def _get_test_db_url() -> str:
     db_test = settings.POSTGRES_DB_TEST  # lê do .env
     return (
         f"postgresql+psycopg2://{user}:{password}@"
-        f"{settings.POSTGRES_SERVER}:{settings.POSTGRES_PORT}/{db_test}"
+        f"{settings.POSTGRES_SERVER}:{settings.POSTGRES_PORT_TEST}/{db_test}"
     )
 
 

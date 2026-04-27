@@ -11,7 +11,9 @@ class AuthService:
     """
 
     @staticmethod
-    def login(username: str, password: str, session: _db) -> tuple[models.Users, dict]:
+    def login(
+        username: str, password: str, session: _db
+    ) -> tuple[models.Users, dict]:
         """
         Autentica um usuário e retorna (user, sub) para geração de JWT.
 
@@ -37,10 +39,7 @@ class AuthService:
             and getattr(ur.role, "name", None) is not None
         ]
 
-        sub = {
-            "user_id": str(user.id),
-            "scopes": role_names
-        }
+        sub = {"user_id": str(user.id), "scopes": role_names}
 
         return user, sub
 
