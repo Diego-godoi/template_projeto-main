@@ -1,101 +1,60 @@
-# Workflow Standard para Desenvolvimento de Projetos Backend (FastAPI + SQLAlchemy)
+# Análise de Arquitetura e Padrões de Projeto (V3 - Async & Data Mapper)
 
-Este documento estabelece o processo padronizado de ciclo de vida e engenharia de software para o desenvolvimento de novos projetos backend. Seu objetivo principal atua como diretriz arquitetural para a equipe e como contexto fundamental de *System Prompt* na automação gerada por Inteligência Artificial (ex: Antigravity Skills), garantindo uniformidade, consistência qualitativa e previsibilidade no código gerado.
+Este documento detalha os padrões arquiteturais e de design implementados no backend, focando em alta performance através de concorrência assíncrona e desacoplamento rigoroso.
 
----
+## 1. Arquitetura Geral
 
-## 1. Planejamento e Especificação
+O projeto utiliza uma arquitetura em camadas horizontais, movida pelo motor **FastAPI** com suporte total a **AsyncIO**, utilizando **PostgreSQL** via driver **asyncpg**.
 
-A fundamentação analítica é o primeiro passo para garantir um desenvolvimento assertivo. Não se escreve código sem um direcionamento estruturado.
-
-1. **Levantamento e Refinamento Inicial:**
-   - Elaborar as especificações funcionais e a delimitação das regras de negócio.
-   - Esclarecer os casos de uso críticos antes da idealização da infraestrutura.
-2. **Documentação e Acompanhamento Diferenciado:**
-   - Criar e gerenciar artefatos Markdown (`.md`) para divisão de épicos em tarefas granulares.
-   - Manter um *checklist* sequencial (Ex: `[ ] Elaboração do Model Cliente -> [ ] Criação do Serviço Cliente -> [ ] Configuração de Endpoints e Testes`).
-3. **Contextualização Sintética para IAs:**
-   - O refinamento dos documentos gerará artefatos de otimização de prompt (*System Contexts*).
-   - O objetivo é introduzir a IA no projeto com um mapa funcional previamente mastigado, reduzindo "alucinações" e alinhando-a às restrições estritas do framework subjacente.
+- **Controllers (Rotas)**: Localizados em `app/api/endpoints/`. São assíncronos e têm responsabilidade única: gerir o tráfego HTTP, extrair dependências (`Depends`) e delegar a execução para a camada de serviço.
+- **Service Layer (Camada de Serviço)**: Localizada em **`app/services/`** (raiz). É o núcleo da aplicação. Concentra a lógica de negócios e as transações de banco de dados, utilizando o padrão **Data Mapper**.
+- **Modelos (Entities)**: Em `app/models/`. Representam apenas a estrutura relacional do SQLAlchemy. São objetos passivos que não possuem métodos de persistência.
+- **Schemas (DTOs)**: Em `app/schema/`. Contratos Pydantic que garantem a integridade dos dados de entrada e a padronização das respostas JSON.
 
 ---
 
-## 2. Tecnologias Principais
+## 2. Padrões de Projeto e Engenharia
 
-Para assegurar compatibilidade, todas as automações devem respeitar o seguinte *stack* fixo:
-- **Framework Web:** `FastAPI`
-- **ORM e Banco de Dados:** `SQLAlchemy` nativo sobre `PostgreSQL` (Sem dialetos customizados ou extensões atípicas salvo caso de uso expresso, ex. GIS).
-- **Contratos e Validação:** `Pydantic` (Validação I/O).
-- **Versionamento de Banco:** `Alembic`
-- **Validação de Testes:** `pytest` (Priorizando fixtures isoladas).
+### 2.1. Concorrência Assíncrona (Async/Await)
+Toda a pilha de I/O é não-bloqueante. Utilizamos `AsyncSession` do SQLAlchemy 2.0 para garantir que o banco de dados não gere gargalos no *Event Loop* do FastAPI.
+> **Regra de Ouro:** Todas as chamadas ao banco ou sistema de arquivos devem ser precedidas por `await`.
 
----
+### 2.2. Data Mapper
+Substituímos o padrão *Active Record*. As entidades do banco não se auto-gerenciam. A lógica de persistência e consultas complexas (`select`, `scalars`) reside exclusivamente nos métodos assíncronos dos **Services**. Isso permite testar a lógica de negócio de forma isolada e facilita a migração de drivers de banco.
 
-## 3. Arquitetura Base e Organização de Diretórios
+### 2.3. Unit of Work & Injeção de Sessão
+A `AsyncSession` é injetada via dependência no Controller e repassada ao Serviço. Isso garante que múltiplas operações de banco dentro de um mesmo fluxo de negócio compartilhem a mesma transação, permitindo `commit` ou `rollback` atômicos.
 
-Em cenários onde um template repositório não estiver disponível, o *scaffolding* do projeto deve aderir severamente à arquitetura descrita abaixo. A estrutura emprega os princípios de *Clean Architecture* somados a um padrão MVC simplificado, impondo a rigorosa separação de responsabilidades intrínsecas ao processo de escalonamento.
-
-```text
-backend/
-├── app/
-│   ├── api/
-│   │   ├── endpoints/    (Controladores FastAPI responsáveis estritamente pelo roteamento HTTP e injeção de dependências)
-│   │   └── services/     (Camada de abstração central contendo lógica de domínio e transações do SQLAlchemy)
-│   ├── auth/             (Módulos voltados para segurança, geração de JWT e políticas de acesso)
-│   ├── core/             (Sistemas de configuração ambiental, parsing de .env e constantes fixas)
-│   ├── db/               (Instâncias do Engine, declarações da Base Declarative e gestão de Sessões)
-│   ├── error/            (Manipuladores de HTTPExceptions interceptáveis customizados)
-│   ├── models/           (Mapeamento Objeto-Relacional referenciando a topologia SQL)
-│   ├── schema/           (Esquemas Pydantic estabelecendo os contratos JSON estritos da API)
-│   └── util/             (Módulos puramente funcionais, dissociados de estado: I/O arquivos, conversões, etc.)
-├── alembic/              (Artefatos do ciclo de vida das migrações do banco de dados)
-├── tests/                (Catálogo de cobertura unitária e de integração, incluindo conftest.py)
-├── pyproject.toml        (Mapeamento oficial do ecossistema de dependências atreladas ao projeto)
-└── requirements.txt      (Representação determinística das bibliotecas fixadas)
-```
-
-**Diretrizes do Desacoplamento:**
-- **Roteadores (Endpoints):** São simplificados e delegadores. Devem limitar-se a gerir parâmetros, extrair credenciais (`Depends`) e retornar serializações padronizadas sem misturar regras SQL.
-- **Camada de Serviço (Services):** Absorve a complexidade. Operações relacionais, cálculos iterativos e consolidação de chamadas a APIs terciárias pertencem exclusivamente aos métodos desta camada.
-- **Dualidade de Tipos (Schema x Model):** Transito externo é regido rigorosamente pelo Pydantic (`schema/`). O encapsulamento em banco de dados responde apenas pelas restrições de integridade do SQLAlchemy (`models/`).
+### 2.4. Global Exception Handling
+O backend não utiliza `HTTPException` nas camadas de serviço ou banco.
+- As camadas inferiores lançam **Exceções de Domínio** customizadas.
+- O `app/main.py` utiliza um `exception_handler` para capturar essas exceções e traduzi-las em status HTTP adequados, mantendo o código limpo e desacoplado.
 
 ---
 
-## 4. Fluxo Orientado a Desenvolvimento
+## 3. Diretrizes de Segurança e Escalabilidade
 
-Para garantir estabilidade, o desenvolvimento caminha através de uma técnica iterativa de validação: Da base de dados até ao acesso público.
+### 3.1. Throttling e Proteção de Infraestrutura
+- **Rate Limiting:** Implementado via `slowapi` em rotas críticas (Login, Password Reset) para prevenir ataques de força bruta.
+- **Sanitização de Consultas:** Validação rigorosa de inputs em operadores `ILIKE` para evitar ataques de negação de serviço (DoS) via sobrecarga de processamento de texto no PostgreSQL.
 
-1. **Desenvolvimento Estruturado (Models):**
-   - Idealização das entidades `SQLAlchemy`.
-   - Mapeamento estrito de chaves estrangeiras, relações e restrições.
-2. **Evolução de Estado do Banco (Migrações Automáticas):**
-   - Transição e geração das migrações utilizando a abstração do `Alembic`.
-3. **Estabelecimento de Contratos (Schemas):**
-   - Codificação dos protocolos `Request` (Validação de entrada) e `Response` (Apresentação de saída com `data` e `meta`) padronizados.
-4. **Resolução Lógica (Services):**
-   - Implementação das regras estabelecendo ligações via injeção de dependência na manipulação da sessão do DB.
-5. **Acesso e Distribuição (Endpoints):**
-   - Conclusão da rota submetendo o uso ao consumidor final.
+### 3.2. Isolamento de Efeitos Colaterais
+Operações de sistema (I/O de arquivos, chamadas para APIs de terceiros) são executadas de forma assíncrona apenas na camada de **Serviço** ou **Utils**, nunca nos modelos ou rotas.
+
+### 3.3. Automação de Testes (Async Testing)
+A suíte de testes em `pytest` opera em modo assíncrono (`pytest-asyncio`). Utilizamos o `httpx.AsyncClient` para testes de integração e garantimos que cada teste rode em uma transação isolada com *rollback* automático, mantendo o banco de testes sempre limpo.
 
 ---
 
-## 5. Gatilhos Arquiteturais Complementares para IAs
+## 4. Pilha Tecnológica
+* **Web:** FastAPI (Async)
+* **DB Engine:** SQLAlchemy 2.0 + `asyncpg`
+* **Migrations:** Alembic
+* **Validation:** Pydantic V2
+* **Testing:** Pytest (Asyncio mode)
+* **Rate Limit:** SlowAPI (Fixed-window)
 
-Especificações inegociáveis ao gerar novo código para a *codebase*:
-- **Padronização de Retorno (Pydantic):** Para todas as listagens ou buscas paginadas, deve-se criar uma classe correspondente contendo estritamente as chaves `meta: MetaData` e `data: list[Schema]`. Nunca inventar novas estruturas arbitrárias como `items` ou `results` dentro da representação.
-- **Herança e Reuso Base:** Tabelas no framework atual descendem de uma classe utilitária de banco de dados (`app/db/base_class.py`) que já abstrai requisições genéricas transversais como CRUD. A IA tem a obrigação de invocar esses manipuladores (`query_params()`, `get()`) na camada Service, evadindo duplicação de instruções genéricas `select()`.
-- **Tratativas de Exceções:** Evitar a invocação nativa solta da classe `HTTPException`. Fazer uso do controlador central, como por exemplo os métodos criados na arquitetura diretorial interna (`app.error`).
-- **Engenharia de Qualidade:** Procedimentos Pytest desenvolvidos não emularão integrações persistentes diretamente do zero. Eles são acoplados pelo design providenciado pelo `conftest.py` com *mocks* provisórios para simular injeções em rotas.
-- **Tratamento de Arquivos (`UploadFile`):**
-  - **Uso Correto em Formulários:** Para permitir requisições `multipart/form-data` nos *schemas* Pydantic (`.as_form`), campos de imagem ou vídeo opcionais devem ser declarados com `UploadFile | None = File(None)`.
-  - **Prevenção de `NoneType` em Services:** Nunca armazene ou processe campos de arquivo cegamente no método *patch* ou *create*. O FastAPI passa o valor `None` quando o arquivo é opcional e não foi enviado. 
-  - **Exemplo de Verificação Segura (Patching):**
-    ```python
-    for key, value in update_data.items():
-        if key == "image":
-            # 🚨 CRÍTICO: Valide antes de chamar util.save_file()
-            if value is not None and hasattr(value, "size") and value.size > 0:
-                image_to_delete = entity.image_url
-                image_name = util.save_file(value, "image")
-                setattr(entity, "image_url", image_name)
-    ```
+---
+
+### Observação para IAs de Automação:
+Qualquer código gerado para este ecossistema **deve** seguir a estrutura de pastas `app/services/` e utilizar exclusivamente métodos assíncronos para persistência e validação de dados. O uso de `db.add()`, `db.commit()` e `db.refresh()` deve ser sempre `await`.

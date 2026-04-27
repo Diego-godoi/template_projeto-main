@@ -1,56 +1,56 @@
-# Progresso das Melhorias de Arquitetura
+# Análise de Arquitetura e Padrões de Projeto
 
-Este documento acompanha o estado de implementação das tarefas listadas em `melhorias_arquitetura_tarefas.md`. Atualize os status conforme as refatorações forem aplicadas.
+Este documento detalha os padrões arquiteturais e de design (*Design Patterns*) implementados no backend do projeto, focando em manutenibilidade, segurança e separação de preocupações.
 
-## Resumo Geral
-- **Total de Épicos:** 5
-- **Status Geral:** Em Planejamento ⏳
+## 1. Arquitetura Geral
 
----
+O projeto adota uma arquitetura em camadas estruturada sobre o framework **FastAPI**, utilizando **PostgreSQL** com **SQLAlchemy** para persistência e **Alembic** para versionamento de banco de dados.
 
-## Detalhamento por Épico
-
-### Épico 1: Desacoplamento do Banco de Dados (`base_class.py`)
-| Tarefa | Status | Notas |
-|---|---|---|
-| **1.1** Remover HTTPExceptions do ORM | 🟢 Concluído | Nova `DatabaseException` substituindo `custom_HTTPException` na `base_class.py` e capturada no `main.py`. |
-| **1.2** Injeção de Sessão (DI) nas rotas/DB | 🟢 Concluído | Instâncias de `SessionLocal()` removidas! Transações (como `query_params`) agora forçam recebimento dinâmico de `_db`. |
-| **1.3** Isolar Efeitos Colaterais (Remover files no Service) | 🟢 Concluído | I/O apagados da `base_class.py` em métodos como `remove_data`. |
+A estrutura é dividida em camadas horizontais desacopladas:
+- **Controllers (Rotas)**: Localizados em `app/api/endpoints/`, gerenciam o ciclo de vida das requisições HTTP, roteamento e injeção de dependências.
+- **Service Layer (Camada de Serviço)**: Localizada em `app/services/`, concentra toda a lógica de negócios e orquestra a persistência de dados.
+- **Modelos (Entities / DB)**: Em `app/models/`, representam apenas o esquema do banco de dados e o estado dos objetos, sem lógica de persistência embutida.
+- **Schemas (DTOs)**: Em `app/schema/`, utilizam Pydantic para validação, serialização e definição de contratos de interface.
 
 ---
 
-### Épico 2: Separação Pydantic x SQLAlchemy
-| Tarefa | Status | Notas |
-|---|---|---|
-| **2.1** Isolar BD de Schemas | 🟢 Concluído | Validadores retirados de `roles_schema`, `users_schema`. Inclusos no Create/Patch em `users_service`, `roles_service` e `user_roles_service`. |
+## 2. Padrões de Projeto (Design Patterns)
+
+### 2.1. Data Mapper
+Diferente do padrão *Active Record*, onde o modelo conhece o banco de dados, aqui utilizamos o **Data Mapper**. Os modelos em `app/models/` são objetos passivos. A lógica de persistência (operações de CRUD e consultas complexas) reside inteiramente na **Service Layer**. Isso permite que o domínio da aplicação seja testado e evoluído sem dependência direta do estado do banco.
+
+### 2.2. Dependency Injection (Injeção de Dependência)
+Utilizado extensivamente através do sistema `Depends()` do FastAPI. É a base para a gestão de segurança (tokens JWT), injeção de serviços nos controllers e fornecimento da sessão do banco de dados (`Session`).
+
+### 2.3. Unit of Work (Sessão Transacional)
+A sessão do SQLAlchemy é injetada no início da requisição e repassada às camadas de serviço. Isso garante a atomicidade das transações: múltiplas operações de banco dentro de um único serviço podem ser confirmadas (*commit*) ou revertidas (*rollback*) em conjunto.
+
+### 2.4. Data Transfer Object (DTO)
+Implementado via modelos Pydantic. Eles garantem que os dados que circulam entre o cliente e o servidor sejam validados e filtrados, evitando a exposição acidental de atributos internos das entidades de banco de dados.
 
 ---
 
-### Épico 3: Isolamento da Camada de Serviços
-| Tarefa | Status | Notas |
-|---|---|---|
-| **3.1** Reorganização de Diretórios | � Concluído | Diretório `app/api/services` fisicamente movido para `app/services` e imports ajustados em todos os `endpoints`. |
+## 3. Diretrizes de Estrutura e Segurança
+
+### 3.1. Tratamento de Exceções e Desacoplamento
+Para manter a pureza da arquitetura, as camadas de Serviço e Banco não possuem conhecimento sobre o protocolo HTTP.
+- **Fluxo:** Caso ocorra um erro (ex: entidade não encontrada), a camada inferior lança uma exceção de domínio (ex: `EntityNotFound`).
+- **Handler:** O FastAPI captura essas exceções através de um `exception_handler` global em `app/main.py`, convertendo-as no status HTTP adequado (404, 422, etc.).
+
+### 3.2. Isolamento de Efeitos Colaterais
+Operações de infraestrutura que não pertencem ao banco de dados, como manipulação de arquivos no sistema operacional ou integração com APIs externas, são delegadas exclusivamente aos **Serviços**. A camada de modelos permanece livre de I/O de arquivos.
+
+### 3.3. Segurança e Performance
+- **Rate Limiting (Throttling):** Proteção contra ataques de força bruta em endpoints críticos via `slowapi`.
+- **Sanitização de Consultas:** Validação rigorosa de inputs em operadores de busca (como `ILIKE`) para evitar sobrecarga de processamento no PostgreSQL e prevenir vulnerabilidades de negação de serviço (DoS) na camada de dados.
+- **Modularidade Vertical:** Recomendação de transição para *Vertical Slicing* em módulos de alta complexidade, agrupando `router`, `service` e `model` por domínio de negócio para facilitar a escalabilidade.
 
 ---
 
-### Épico 4: Segurança, Throttling e Performance
-| Tarefa | Status | Notas |
-|---|---|---|
-| **4.1** Proteção de Rotas com Rate Limiting (`slowapi`) | 🟢 Concluído | `slowapi` instalado. `Limiter` isolado em `app/core/limiter.py`. Limites: `5/minute` em `/login/access-token`, `3/minute` em `/forgot-my-password/`. Em produção com proxy reverso, mover para Nginx. |
-| **4.2** Sanitização de Input no operador ILIKE | 🟢 Concluído | Validação de 3–100 chars adicionada em `query_by_partial_match` e no operador `~` de `query_params` no `base_class.py`. Retorna HTTP 422 com mensagem descritiva ao violar limites. |
-| **4.3** *(Novo)* Nota arquitetural: ILIKE em produção de escala | 🔵 Backlog | Para conjuntos de dados acima de ~100k registros, criar índice trigram (`pg_trgm`) no PostgreSQL para colunas texto alvo de buscas parciais. Requer script de migration Alembic manual. |
-
----
-
-### Épico 5: Fluxo de Automação de Testes
-| Tarefa | Status | Notas |
-|---|---|---|
-| **5.1** Estruturação Base (`conftest.py`) | 🟢 Concluído | Criada configuração do banco transacional via `engine_test` e `db_session` com rollback, além de client FastAPI com injeção de dependência via `dependency_overrides`. |
-| **5.2** Modelos de Cobertura E2E (Users/Services) | 🟢 Concluído | Criados testes espelhos da camada Service em `tests/test_users_service.py` e testes E2E em `tests/test_users_api.py`. Implementação estável utilizando o Faker e resolvendo restrições de validação de e-mails (`email_validator`). |
-
----
-
-> **Como utilizar este documento:**
-> 1. Inicie um Épico mudando o status para `🟡 Em Andamento`.
-> 2. Ao finalizar PR ou Commit, altere para `🟢 Concluído`.
-> 3. Deixe observações nas Notas em caso de gargalos arquiteturais.
+### 4. Pilha Tecnológica Principal
+* **Framework:** FastAPI
+* **ORM:** SQLAlchemy 2.0 (Estilo Data Mapper)
+* **Database:** PostgreSQL
+* **Validation:** Pydantic V2
+* **Migrations:** Alembic
+* **Testing:** Pytest com instâncias transacionais isoladas
