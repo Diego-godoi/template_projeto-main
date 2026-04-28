@@ -12,7 +12,10 @@ from app import core
 __all__ = ["AsyncSessionLocal", "engine", "get_db", "_db"]
 
 engine = create_async_engine(
-    core.settings.get_async_db_url(), pool_pre_ping=True
+    core.settings.get_async_db_url(),
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
 )
 AsyncSessionLocal = async_sessionmaker(
     autocommit=False, autoflush=False, bind=engine
