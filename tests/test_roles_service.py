@@ -1,6 +1,7 @@
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import error
@@ -18,9 +19,8 @@ async def _criar_role(db_session: AsyncSession, name="Admin") -> Roles:
     normalized_name = util.normalize_capitalize(name)
     schema = PostRoles(name=name)
     # Tenta resgatar se já existe no banco temporal para não violar DB durante tests massivos
-    existing = await Roles.get(
-        _db=db_session, attribute="name", value=normalized_name
-    )
+    stmt = select(Roles).where(Roles.name == normalized_name)
+    existing = (await db_session.execute(stmt)).scalars().first()
     if existing:
         return existing
 

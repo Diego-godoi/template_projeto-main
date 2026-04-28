@@ -2,6 +2,7 @@ import pytest
 from faker import Faker
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import util
 from app.auth import get_current_payload
 from app.core.config import settings
 from app.main import app
@@ -45,7 +46,9 @@ async def test_roles_crud_fluxo_completo(
             f"{API_PREFIX}/roles/{role_id}", json=patch_payload
         )
         assert resp_patch.status_code == 200
-        assert resp_patch.json()["name"] == novo_nome
+        assert resp_patch.json()["name"] == util.normalize_capitalize(
+            novo_nome
+        )
 
         # 4. Delete (Remove)
         resp_delete = await client.delete(f"{API_PREFIX}/roles/{role_id}")

@@ -35,7 +35,8 @@ class PostRoles(BaseModel):
     def validators_roles(self, data) -> "PostRoles":
         errors = []
         try:
-            data["name"] = util.normalize_capitalize(data["name"])
+            if isinstance(data, dict) and data.get("name") is not None:
+                data["name"] = util.normalize_capitalize(data["name"])
         except Exception as e:
             errors.append(
                 {
@@ -99,7 +100,8 @@ class PatchRoles(BaseModel):
     def validators_roles(self, data) -> "PostRoles":
         errors = []
         try:
-            data["name"] = util.normalize_capitalize(data["name"])
+            if isinstance(data, dict) and data.get("name") is not None:
+                data["name"] = util.normalize_capitalize(data["name"])
         except Exception as e:
             errors.append(
                 {
