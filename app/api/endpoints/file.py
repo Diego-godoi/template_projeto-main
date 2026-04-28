@@ -23,7 +23,7 @@ class FileType(str, Enum):
 def create_file(
     file: UploadFile = File(...),
     type_data: FileType = Form(...),
-    Authentication: dict = Security(auth.get_current_payload, scopes=["user"]),
+    Authentication: dict = Security(auth.get_current_payload, scopes=["user", "admin"]),
 ) -> str:
     """
     Cria um novo arquivo.
@@ -56,7 +56,7 @@ def create_file(
 @router.get("/{filename}", response_class=responses.FileResponse)
 def get_file_by_filename(
     filename: UUID4,
-    Authentication: dict = Security(auth.get_current_payload, scopes=["user"]),
+    Authentication: dict = Security(auth.get_current_payload, scopes=["user", "admin"]),
 ):
     if os.path.exists(f"{settings.UPLOAD_DIR}{str(filename)}"):
         image = os.path.join(settings.UPLOAD_DIR, str(filename))

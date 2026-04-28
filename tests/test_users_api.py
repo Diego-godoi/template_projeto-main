@@ -1,12 +1,6 @@
-# tests/test_users_api.py
-"""
-Testes end-to-end do endpoint de usuários (Épico 5.2).
-
-Utiliza o TestClient do FastAPI.
-"""
-
+import pytest
 from faker import Faker
-from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_payload
 from app.core.config import settings
@@ -18,7 +12,8 @@ fake = Faker("pt_BR")
 API_PREFIX = settings.API_URL_PREFIX
 
 
-def test_post_usuario_retorna_201(client: TestClient):
+@pytest.mark.asyncio
+async def test_post_usuario_retorna_201(client):
     """
     Testa se o endpoint de criação de usuário retorna 201 Created.
     """
@@ -32,7 +27,7 @@ def test_post_usuario_retorna_201(client: TestClient):
         "active": True,
     }
 
-    response = client.post(f"{API_PREFIX}/users/", json=payload)
+    response = await client.post(f"{API_PREFIX}/users/", json=payload)
 
     assert response.status_code == 201
     data = response.json()
@@ -40,7 +35,8 @@ def test_post_usuario_retorna_201(client: TestClient):
     assert data["email"] == payload["email"]
 
 
-def test_post_usuario_email_duplicado_retorna_422(client: TestClient):
+@pytest.mark.asyncio
+async def test_post_usuario_email_duplicado_retorna_422(client):
     """
     Criar usuário com email duplicado retorna 422 Unprocessable Entity.
     """
@@ -55,7 +51,7 @@ def test_post_usuario_email_duplicado_retorna_422(client: TestClient):
         "active": True,
     }
     # Criar o primeiro
-    client.post(f"{API_PREFIX}/users/", json=payload1)
+    await client.post(f"{API_PREFIX}/users/", json=payload1)
 
     # Tentar criar o segundo com o mesmo email e CPF diferente
     cpf2_raw = fake.cpf().replace(".", "").replace("-", "")
@@ -67,7 +63,7 @@ def test_post_usuario_email_duplicado_retorna_422(client: TestClient):
         "active": True,
     }
 
-    response2 = client.post(f"{API_PREFIX}/users/", json=payload2)
+    response2 = await client.post(f"{API_PREFIX}/users/", json=payload2)
     assert response2.status_code == 422
 
     data = response2.json()
@@ -75,7 +71,8 @@ def test_post_usuario_email_duplicado_retorna_422(client: TestClient):
     assert any(err["loc"][-1] == "email" for err in data["detail"])
 
 
-def test_get_usuarios_retorna_200(client: TestClient):
+@pytest.mark.asyncio
+async def test_get_usuarios_retorna_200(client):
     """
     Testa listagem de usuários retorna 200 OK via GET /users/.
     Requer override de autenticação (scope: user).
@@ -88,7 +85,7 @@ def test_get_usuarios_retorna_200(client: TestClient):
     app.dependency_overrides[get_current_payload] = override_user
 
     try:
-        response = client.get(f"{API_PREFIX}/users/")
+        response = await client.get(f"{API_PREFIX}/users/")
         assert response.status_code == 200
         data = response.json()
         assert "data" in data
@@ -97,10 +94,13 @@ def test_get_usuarios_retorna_200(client: TestClient):
         app.dependency_overrides.pop(get_current_payload, None)
 
 
-def test_patch_usuario_retorna_200(client: TestClient, db_session):
+@pytest.mark.asyncio
+async def test_patch_usuario_retorna_200(
+    client, async_db_session: AsyncSession
+):
     from tests.test_users_service import _criar_usuario
 
-    user, _ = _criar_usuario(db_session)
+    user, _ = await _criar_usuario(async_db_session)
 
     async def override_user():
         return {"user_id": str(user.id), "scopes": ["user"]}
@@ -110,17 +110,24 @@ def test_patch_usuario_retorna_200(client: TestClient, db_session):
     try:
         novo_nome = "Nome Trocado Via API"
         payload = {"full_name": novo_nome}
-        response = client.patch(f"{API_PREFIX}/users/{user.id}", json=payload)
+        response = await client.patch(
+            f"{API_PREFIX}/users/{user.id}", json=payload
+        )
         assert response.status_code == 200
+        # A normalização pode mudar o case dependendo da implementação, mas o service usa lower em alguns campos e title em outros.
+        # No users_service.py: user_data.full_name = normalize_title(schema.full_name)
         assert response.json()["full_name"] == "Nome Trocado Via Api"
     finally:
         app.dependency_overrides.pop(get_current_payload, None)
 
 
-def test_delete_usuario_retorna_204(client: TestClient, db_session):
+@pytest.mark.asyncio
+async def test_delete_usuario_retorna_204(
+    client, async_db_session: AsyncSession
+):
     from tests.test_users_service import _criar_usuario
 
-    user, _ = _criar_usuario(db_session)
+    user, _ = await _criar_usuario(async_db_session)
 
     async def override_user():
         return {"user_id": str(user.id), "scopes": ["user"]}
@@ -128,7 +135,7 @@ def test_delete_usuario_retorna_204(client: TestClient, db_session):
     app.dependency_overrides[get_current_payload] = override_user
 
     try:
-        response = client.delete(f"{API_PREFIX}/users/{user.id}")
+        response = await client.delete(f"{API_PREFIX}/users/{user.id}")
         assert response.status_code == 204
     finally:
         app.dependency_overrides.pop(get_current_payload, None)

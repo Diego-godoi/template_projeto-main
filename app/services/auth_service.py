@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 
+from sqlalchemy import select
+
 from app import core, error, models, schema, util
 from app.db import _db
 from app.util import normalize_lower
@@ -11,7 +13,7 @@ class AuthService:
     """
 
     @staticmethod
-    def login(
+    async def login(
         username: str, password: str, session: _db
     ) -> tuple[models.Users, dict]:
         """
@@ -24,10 +26,16 @@ class AuthService:
         if not username_normalizado:
             raise error.CustomException(400, "Email ou Senha invalidos")
 
-        user: models.Users | None = models.Users.get(
-            _db=session, attribute="email", value=username_normalizado
+        stmt = (
+            select(models.Users)
+            .where(models.Users.email == username_normalizado)
+            .limit(1)
         )
-        if not user or not core.verify_password(password, user.password):
+        user: models.Users | None = (
+            (await session.execute(stmt)).scalars().first()
+        )
+
+        if not user or not await core.verify_password(password, user.password):
             raise error.CustomException(400, "Email ou Senha invalidos")
         if not user.active:
             raise error.CustomException(401, "Usuario Inativo")
@@ -44,7 +52,7 @@ class AuthService:
         return user, sub
 
     @staticmethod
-    def request_password_reset(
+    async def request_password_reset(
         email: str, session: _db
     ) -> tuple[str, tuple[str, str, str] | None]:
         """
@@ -57,7 +65,8 @@ class AuthService:
             "Se o e-mail estiver cadastrado, as instruções serão enviadas."
         )
 
-        user = models.Users.get(session, "email", email)
+        stmt = select(models.Users).where(models.Users.email == email).limit(1)
+        user = (await session.execute(stmt)).scalars().first()
         if not user:
             return message, None
 
@@ -68,20 +77,25 @@ class AuthService:
             minutes=core.settings.RESET_PASSWORD_TOKEN_EXPIRATION_MINUTES
         )
 
-        user.reset_password_code = core.get_password_hash(code)
+        user.reset_password_code = await core.get_password_hash(code)
         user.reset_password_expiration = expiration
 
         session.add(user)
-        session.commit()
-        session.refresh(user)
+        await session.commit()
+        await session.refresh(user)
 
         return message, (email, core.settings.PROJECT_NAME, body)
 
     @staticmethod
-    def reset_password(data: schema.ResetPassword, session: _db) -> str:
+    async def reset_password(data: schema.ResetPassword, session: _db) -> str:
         """Valida o código e altera a senha do usuário."""
         data.code = util.normalize_uper(data.code)
-        user = models.Users.get(session, "email", data.email)
+        stmt = (
+            select(models.Users)
+            .where(models.Users.email == data.email)
+            .limit(1)
+        )
+        user = (await session.execute(stmt)).scalars().first()
 
         if (
             not user
@@ -93,7 +107,7 @@ class AuthService:
         if datetime.now() > user.reset_password_expiration:
             raise error.CustomException(401, "Código expirado")
 
-        if not core.verify_password(data.code, user.reset_password_code):
+        if not await core.verify_password(data.code, user.reset_password_code):
             raise error.CustomException(401, "Email ou código inválido")
 
         senha_final = (
@@ -104,10 +118,10 @@ class AuthService:
 
         user.reset_password_code = None
         user.reset_password_expiration = None
-        user.password = senha_final
+        user.password = await core.get_password_hash(senha_final)
 
         session.add(user)
-        session.commit()
-        session.refresh(user)
+        await session.commit()
+        await session.refresh(user)
 
         return "Senha alterada"

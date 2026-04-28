@@ -13,7 +13,7 @@ class UserRolesService:
     """
 
     @staticmethod
-    def get_user_roles(query_params: QueryParametersDep, session: _db):
+    async def get_user_roles(query_params: QueryParametersDep, session: _db):
         """Busca, filtra e pagina os registros de UserRoles.
 
         Delega a chamada para o método query_params do modelo UserRoles,
@@ -30,10 +30,10 @@ class UserRolesService:
         """
 
         query_args = vars(query_params)
-        return UserRoles.query_params(_db=session, **query_args)
+        return await UserRoles.query_params(_db=session, **query_args)
 
     @staticmethod
-    def create_user_role(schema: PostUserRoles, session: _db):
+    async def create_user_role(schema: PostUserRoles, session: _db):
         """Associa um User a uma Role no banco de dados.
 
         Valida todas as regras de negócio e acumula os erros antes de
@@ -48,7 +48,7 @@ class UserRolesService:
         """
         errors = []
 
-        if not session.get(models.Users, schema.user_id):
+        if not await session.get(models.Users, schema.user_id):
             errors.append(
                 {
                     "loc": ["body", "user_id"],
@@ -57,7 +57,7 @@ class UserRolesService:
                 }
             )
 
-        if not session.get(models.Roles, schema.role_id):
+        if not await session.get(models.Roles, schema.role_id):
             errors.append(
                 {
                     "loc": ["body", "role_id"],
@@ -71,12 +71,12 @@ class UserRolesService:
 
         data = UserRoles(**schema.model_dump())
         session.add(data)
-        session.commit()
-        session.refresh(data)
+        await session.commit()
+        await session.refresh(data)
         return data
 
     @staticmethod
-    def patch_user_role(id: UUID, schema: PatchUserRoles, session: _db):
+    async def patch_user_role(id: UUID, schema: PatchUserRoles, session: _db):
         """Atualiza parcialmente uma associação UserRoles existente.
 
         Valida todas as regras de negócio e acumula os erros antes de
@@ -94,7 +94,7 @@ class UserRolesService:
         Returns:
             UserRoles: O objeto UserRoles atualizado.
         """
-        item_to_update = session.get(UserRoles, id)
+        item_to_update = await session.get(UserRoles, id)
 
         if not item_to_update:
             raise error.CustomException(404, "ID não encontrado")
@@ -102,7 +102,7 @@ class UserRolesService:
         update_data = schema.model_dump(exclude_unset=True)
         errors = []
 
-        if "user_id" in update_data and not session.get(
+        if "user_id" in update_data and not await session.get(
             models.Users, update_data["user_id"]
         ):
             errors.append(
@@ -113,7 +113,7 @@ class UserRolesService:
                 }
             )
 
-        if "role_id" in update_data and not session.get(
+        if "role_id" in update_data and not await session.get(
             models.Roles, update_data["role_id"]
         ):
             errors.append(
@@ -131,13 +131,13 @@ class UserRolesService:
             setattr(item_to_update, key, value)
 
         session.add(item_to_update)
-        session.commit()
-        session.refresh(item_to_update)
+        await session.commit()
+        await session.refresh(item_to_update)
 
         return item_to_update
 
     @staticmethod
-    def delete_user_role(id: UUID, session: _db):
+    async def delete_user_role(id: UUID, session: _db):
         """Deleta uma associação UserRoles existente do banco de dados.
 
         Args:
@@ -151,12 +151,12 @@ class UserRolesService:
         Returns:
             UserRoles: O objeto UserRoles que foi deletado.
         """
-        item_to_delete = session.get(UserRoles, id)
+        item_to_delete = await session.get(UserRoles, id)
 
         if not item_to_delete:
             raise error.CustomException(404, "ID não encontrado")
 
-        session.delete(item_to_delete)
-        session.commit()
+        await session.delete(item_to_delete)
+        await session.commit()
 
         return item_to_delete

@@ -1,23 +1,30 @@
 from typing import Annotated
 
 from fastapi import Depends
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from app import core
 
-__all__ = ["SessionLocal", "engine", "get_db", "_db"]
+__all__ = ["AsyncSessionLocal", "engine", "get_db", "_db"]
 
-engine = create_engine(core.settings.get_db_url())
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+engine = create_async_engine(
+    core.settings.get_async_db_url(), pool_pre_ping=True
+)
+AsyncSessionLocal = async_sessionmaker(
+    autocommit=False, autoflush=False, bind=engine
+)
 
 
 async def get_db():
     try:
-        db = SessionLocal()
+        db = AsyncSessionLocal()
         yield db
     finally:
-        db.close()
+        await db.close()
 
 
-_db = Annotated[Session, Depends(get_db)]
+_db = Annotated[AsyncSession, Depends(get_db)]

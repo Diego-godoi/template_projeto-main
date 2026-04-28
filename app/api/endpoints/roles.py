@@ -14,7 +14,7 @@ router = APIRouter(prefix="/roles", tags=["Roles"])
     response_model=schema.ResponseRoles,
     status_code=status.HTTP_200_OK,
 )
-def get_roles(
+async def get_roles(
     query_parameters: QueryParametersDep,
     session: _db,
     Authorization: dict = Security(auth.get_current_payload, scopes=["admin"]),
@@ -30,13 +30,13 @@ def get_roles(
     Returns:
         Retorna os dados da consulta em lista do schema `GetRoles`.
     """
-    return RolesService.get_roles(query_parameters, session)
+    return await RolesService.get_roles(query_parameters, session)
 
 
 @router.post(
     "/", response_model=schema.GetRoles, status_code=status.HTTP_201_CREATED
 )
-def create_roles(
+async def create_roles(
     json_data: schema.PostRoles,
     session: _db,
     Authentication: dict = Security(
@@ -55,13 +55,13 @@ def create_roles(
     Returns:
         GetRoles: Retorna o dado com as informaçoes de criaçao atualizadas.
     """
-    return RolesService.create_role(json_data, session)
+    return await RolesService.create_role(json_data, session)
 
 
 @router.patch(
     "/{id}", response_model=schema.GetRoles, status_code=status.HTTP_200_OK
 )
-def update_roles_by_id(
+async def update_roles_by_id(
     id: UUID4,
     json_data: schema.PatchRoles,
     session: _db,
@@ -82,11 +82,11 @@ def update_roles_by_id(
     Returns:
         schema.GetRoles: Retorna os dado com as informaçoes atualizadas.
     """
-    return RolesService.patch_role(id, json_data, session)
+    return await RolesService.patch_role(id, json_data, session)
 
 
 @router.delete("/{id}")
-def delete_roles_by_id(
+async def delete_roles_by_id(
     id: UUID4,
     session: _db,
     Authentication: dict = Security(
@@ -105,5 +105,5 @@ def delete_roles_by_id(
     Returns:
         None: "No content"
     """
-    RolesService.delete_role(id, session)
+    await RolesService.delete_role(id, session)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

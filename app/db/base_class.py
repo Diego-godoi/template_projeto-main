@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy import CHAR, Column, DateTime, String, Text, func, select
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import DeclarativeBase, Session, load_only
 
@@ -16,7 +17,7 @@ __all__ = ["Base"]
 
 
 def generate_uuid():
-    return str(uuid.uuid4())
+    return uuid.uuid4()
 
 
 class Response:
@@ -35,21 +36,21 @@ class Base(DeclarativeBase):
     def __tablename__(cls) -> str:
         return pascal_to_snake_case(cls.__name__)
 
-    def create(self, _db: Session) -> object:
+    async def create(self, _db: AsyncSession) -> object:
         try:
             data = self
             _db.add(data)
-            _db.flush()
-            _db.commit()
-            _db.refresh(data)
+            await _db.flush()
+            await _db.commit()
+            await _db.refresh(data)
             return data
 
         except SQLAlchemyError as e:
             raise DatabaseException(detail=str(e), status_code=500)
 
     @classmethod
-    def login(
-        self, attribute: str, value: Any, password: str, _db: Session
+    async def login(
+        self, attribute: str, value: Any, password: str, _db: AsyncSession
     ) -> object:
         """executa login em usuario
 
@@ -57,7 +58,7 @@ class Base(DeclarativeBase):
             attribute (str): Nome do atributo para verificar o valor
             value (str): username para efetuar o login
             password (str): senha para ser verificada
-            _db (Session): Sessão de banco de dados injetada
+            _db (AsyncSession): Sessão de banco de dados injetada
 
         Raises:
             CustomException: 404 usuario ou senha incorretos
@@ -68,11 +69,10 @@ class Base(DeclarativeBase):
             object: _description_
         """
         try:
-            data = (
-                _db.query(self)
-                .filter(getattr(self, attribute) == value)
-                .first()
-            )
+            stmt = select(self).where(getattr(self, attribute) == value)
+            result = await _db.execute(stmt)
+            data = result.scalars().first()
+
             if not data:
                 raise CustomException(
                     status_code=404,
@@ -84,7 +84,7 @@ class Base(DeclarativeBase):
                         status_code=401, detail="Usuario Inativo"
                     )
 
-            if not core.verify_password(password, data.password):
+            if not await core.verify_password(password, data.password):
                 raise CustomException(
                     status_code=401,
                     detail="Usuario ou senha invalidos",
@@ -94,15 +94,15 @@ class Base(DeclarativeBase):
             raise DatabaseException(detail=str(e), status_code=500)
 
     @classmethod
-    def query_by_partial_match(
-        self, attribute: str, value: str, _db: Session
+    async def query_by_partial_match(
+        self, attribute: str, value: str, _db: AsyncSession
     ) -> object:
         """Realiza uma busca parcial nos registros de uma tabela baseada em um atributo e valor.
 
         Args:
             attribute (str): Nome do atributo a ser buscado.
             value (str): Valor parcial para busca. Deve ter entre 3 e 100 caracteres.
-            _db (Session): Sessão providenciada pela injeção.
+            _db (AsyncSession): Sessão providenciada pela injeção.
 
         Returns:
             object: Lista de objetos encontrados que correspondem à busca parcial.
@@ -120,22 +120,23 @@ class Base(DeclarativeBase):
                 )
             if hasattr(self, attribute):
                 pattern = f"%{value}%"
-                query = _db.query(self).filter(
+                stmt = select(self).filter(
                     getattr(self, attribute).ilike(pattern)
                 )
-                data = query.all()
+                result = await _db.execute(stmt)
+                data = result.scalars().all()
                 return data
             else:
                 raise ValueError(
-                    f"Atributo '{attribute}' não encontrado na tabela '{self._tablename_}'."
+                    f"Atributo '{attribute}' não encontrado na tabela '{self.__tablename__}'."
                 )
         except SQLAlchemyError as e:
             raise DatabaseException(detail=str(e), status_code=500)
 
     @classmethod
-    def query_params(
+    async def query_params(
         self,
-        _db: Session,
+        _db: AsyncSession,
         all_data: bool = False,
         attribute: str | None = None,
         value: str | None = None,
@@ -148,7 +149,7 @@ class Base(DeclarativeBase):
         """Este método realiza consultas personalizadas de acordo com a requisição do front-end.
 
         Args:
-            _db (Session): Sessão repassada para query.
+            _db (AsyncSession): Sessão repassada para query.
             all_data (bool): Se True, retorna uma lista de todos os dados equivalentes.
             attribute (str | None): Nome da chave a ser pesquisada. Deve ser um atributo válido da tabela.
             value (str | None): Conteúdo da busca relacionado à chave.
@@ -165,7 +166,11 @@ class Base(DeclarativeBase):
             object: Retorna um objeto SQLAlchemy podendo ser vazio em caso de não encontrar nenhuma correspondência.
         """
 
-        meta = {"total_items": _db.query(func.count(self.id)).scalar()}
+        meta = {
+            "total_items": (
+                await _db.execute(select(func.count(self.id)))
+            ).scalar()
+        }
 
         try:
             query = select(self)
@@ -284,10 +289,7 @@ class Base(DeclarativeBase):
             if skip is not None and limit is not None:
                 _offset = skip * limit
                 query = query.offset(_offset).limit(limit)
-            if all_data:
-                data = _db.execute(query).scalars().unique().all()
-            else:
-                data = _db.execute(query).scalar_one()
+            data = (await _db.execute(query)).scalars().unique().all()
 
             return Response(data=data, meta=meta)
 
@@ -298,12 +300,12 @@ class Base(DeclarativeBase):
             raise DatabaseException(detail=str(e), status_code=500)
 
     @classmethod
-    def remove(self, id: UUID, _db: Session) -> str:
+    async def remove(self, id: UUID, _db: AsyncSession) -> str:
         """metodo utilizado para remover um dado da tabela correspondente
 
         Args:
             id (UUID): Id do dado a ser removido.
-            _db (Session): Sessão DB.
+            _db (AsyncSession): Sessão DB.
 
         Raises:
             CustomException: 404 em caso de nao encontar dado correspondete ao id remetido.
@@ -313,13 +315,15 @@ class Base(DeclarativeBase):
             str: retorna ok em caso de sucesso.
         """
         try:
-            data = _db.query(self).filter_by(id=id).first()
+            stmt = select(self).filter_by(id=id)
+            result = await _db.execute(stmt)
+            data = result.scalars().first()
             if not data:
                 raise CustomException(
                     status_code=404, detail="Dado não encontrado"
                 )
-            _db.delete(data)
-            _db.commit()
+            await _db.delete(data)
+            await _db.commit()
             return "OK"
         except Exception as e:
             if isinstance(e, CustomException):
@@ -327,28 +331,30 @@ class Base(DeclarativeBase):
             raise DatabaseException(detail=str(e), status_code=500)
 
     @classmethod
-    def remove_data(self, id: UUID, _db: Session) -> list:
+    async def remove_data(self, id: UUID, _db: AsyncSession) -> list:
         """metodo utilizado para remover um dado da tabela correspondente
         Nota: Modificado para não interagir mais com manipulação de arquivos no SO. A camada de serviço executará a limpeza
         sobre a lista de arquivos retornada por este método.
 
         Args:
             id (UUID): Id do dado a ser removido.
-            _db: (Session): Repasse de sessão.
+            _db: (AsyncSession): Repasse de sessão.
 
         Returns:
             list: Lista com o conteúdo que os atributos de arquivos tinham para a camada service invocar.
         """
         try:
             exclude_files = []
-            data = _db.query(self).filter_by(id=id).first()
+            stmt = select(self).filter_by(id=id)
+            result = await _db.execute(stmt)
+            data = result.scalars().first()
             if not data:
                 raise CustomException(
                     status_code=404, detail="Dado não encontrado"
                 )
 
-            _db.delete(data)
-            _db.commit()
+            await _db.delete(data)
+            await _db.commit()
 
             return exclude_files
         except Exception as e:
@@ -357,15 +363,17 @@ class Base(DeclarativeBase):
             raise DatabaseException(detail=str(e), status_code=500)
 
     @classmethod
-    def update(self, id: UUID, _db: Session, **json_data) -> object:
+    async def update(self, id: UUID, _db: AsyncSession, **json_data) -> object:
         """funçao para atuilizar dados de uma tabela a partir de um dict
 
         Args:
             id (UUID): UUID do dado a ser atualizado
-            _db (Session): Sessão da conexão
+            _db (AsyncSession): Sessão da conexão
         """
         try:
-            data = _db.query(self).filter_by(id=id).first()
+            stmt = select(self).filter_by(id=id)
+            result = await _db.execute(stmt)
+            data = result.scalars().first()
             if not data:
                 raise CustomException(
                     status_code=404,
@@ -374,8 +382,8 @@ class Base(DeclarativeBase):
             for key, value in json_data.items():
                 setattr(data, key, value)
             _db.add(data)
-            _db.commit()
-            _db.refresh(data)
+            await _db.commit()
+            await _db.refresh(data)
             return data
         except Exception as e:
             if isinstance(e, CustomException):
@@ -383,14 +391,16 @@ class Base(DeclarativeBase):
             raise DatabaseException(detail=str(e), status_code=500)
 
     @classmethod
-    def update_form(self, id: UUID, _db: Session, **form) -> object:
+    async def update_form(self, id: UUID, _db: AsyncSession, **form) -> object:
         """funçao para atuilizar dados de uma tabela a partir de um dict
 
         Nota: Removeu-se as interações com sistema de arquivo (save_file/delete_file).
         No lugar, a camada externa deverá processar e apenas submeter o nome em arquivo em form.
         """
         try:
-            data = _db.query(self).filter_by(id=id).first()
+            stmt = select(self).filter_by(id=id)
+            result = await _db.execute(stmt)
+            data = result.scalars().first()
             if not data:
                 raise CustomException(
                     status_code=404,
@@ -401,8 +411,8 @@ class Base(DeclarativeBase):
                 if value or str(type(value)) == "<class 'bool'>":
                     setattr(data, key, value)
             _db.add(data)
-            _db.commit()
-            _db.refresh(data)
+            await _db.commit()
+            await _db.refresh(data)
 
             return data
 
@@ -412,7 +422,7 @@ class Base(DeclarativeBase):
             raise DatabaseException(detail=str(e), status_code=500)
 
     @classmethod
-    def create_form(self, _db: Session, **form) -> object:
+    async def create_form(self, _db: AsyncSession, **form) -> object:
         """
         Nota: Exclusão física de arquivos isolada daqui. Camada Service processa "files" primeiro
         e transporta os nomes para form.
@@ -423,8 +433,8 @@ class Base(DeclarativeBase):
                 if value:
                     setattr(data, key, value)
             _db.add(data)
-            _db.commit()
-            _db.refresh(data)
+            await _db.commit()
+            await _db.refresh(data)
             return data
 
         except Exception as e:
@@ -433,9 +443,9 @@ class Base(DeclarativeBase):
             raise DatabaseException(detail=str(e), status_code=500)
 
     @classmethod
-    def get(
+    async def get(
         self,
-        _db: Session,
+        _db: AsyncSession,
         attribute: str | None = None,
         value: Any | None = None,
     ) -> object:
@@ -449,11 +459,9 @@ class Base(DeclarativeBase):
             object: _description_
         """
         try:
-            data = (
-                _db.query(self)
-                .filter(getattr(self, attribute) == value)
-                .first()
-            )
+            stmt = select(self).filter(getattr(self, attribute) == value)
+            result = await _db.execute(stmt)
+            data = result.scalars().first()
 
             return data
         except Exception as e:

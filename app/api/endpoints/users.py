@@ -16,7 +16,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
     response_model=schema.ResponseUsers,
     status_code=status.HTTP_200_OK,
 )
-def get_users(
+async def get_users(
     query_parameters: QueryParametersDep,
     session: _db,
     Authentication: dict = Security(
@@ -24,7 +24,7 @@ def get_users(
     ),
 ) -> schema.ResponseUsers:
     """Realiza requisiçoes tipo **GET** em **Users** models"""
-    return UsersService.get_users(query_parameters, session)
+    return await UsersService.get_users(query_parameters, session)
 
 
 @router.post(
@@ -32,12 +32,12 @@ def get_users(
     response_model=schema.GetUsers,
     status_code=status.HTTP_201_CREATED,
 )
-def create_users(
+async def create_users(
     json_data: schema.PostUsers,
     session: _db,  # <-- Dependência da sessão adicionada
 ) -> schema.GetUsers:
     """Recebe uma requisição tipo `POST` contendo dados referente a **Users**"""
-    return UsersService.create_user(json_data, session)
+    return await UsersService.create_user(json_data, session)
 
 
 @router.patch(
@@ -45,25 +45,25 @@ def create_users(
     response_model=schema.GetUsers,
     status_code=status.HTTP_200_OK,
 )
-def update_users_by_uuid(
+async def update_users_by_uuid(
     id: UUID4,
     json_data: schema.PatchUsers,
     session: _db,
     Authentication: dict = Security(auth.get_current_payload, scopes=["user"]),
 ) -> schema.GetUsers:
     """Atualiza um dado na tabela **Users** a partir de um UUID valido"""
-    return UsersService.patch_user(id, json_data, session)
+    return await UsersService.patch_user(id, json_data, session)
 
 
 @router.delete(
     "/{id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-def delete_users_by_uuid(
+async def delete_users_by_uuid(
     id: UUID4,
     session: _db,
     Authentication: dict = Security(auth.get_current_payload, scopes=["user"]),
 ):
     """Deleta um dado na tabela **Users** a partir do seu UUID"""
-    UsersService.delete_user(id, session)
+    await UsersService.delete_user(id, session)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

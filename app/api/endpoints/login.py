@@ -12,24 +12,26 @@ router = APIRouter(tags=["login"])
 
 
 @router.get("/popDB/")
-def populate_db(session: _db):
+async def populate_db(session: _db):
     """Endpoint para popular o banco (Usado para dev)"""
     from app.db.init_db import pop_db
 
-    pop_db(session)
+    await pop_db(session)
     return "Ok"
 
 
 @router.post("/login/access-token", response_model=schema.LoginResponse)
 @limiter.limit("5/minute")
-def post_login(
+async def post_login(
     request: Request,
     login: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: _db,
 ):
     """Logar"""
 
-    user, sub = AuthService.login(login.username, login.password, session)
+    user, sub = await AuthService.login(
+        login.username, login.password, session
+    )
 
     token = auth.encode_token(
         sub,
@@ -52,7 +54,7 @@ async def forgot_my_password(
     session: _db,
 ):
     """Esqueci minha senha"""
-    message, email_payload = AuthService.request_password_reset(
+    message, email_payload = await AuthService.request_password_reset(
         email.email, session
     )
     if email_payload:
@@ -63,9 +65,9 @@ async def forgot_my_password(
 
 
 @router.put("/new-password/")
-def put_password(
+async def put_password(
     data: schema.ResetPassword,
     session: _db,
 ):
     """Altera a senha do usuario"""
-    return AuthService.reset_password(data, session)
+    return await AuthService.reset_password(data, session)

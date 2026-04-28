@@ -123,9 +123,11 @@ def normalize_uper(key: str):
 
 
 def normalize_password(key: bytes):
-    if not key:
-        return key
-    return core.get_password_hash(key)
+    """
+    Nota: Hashing removido daqui para evitar conflito async e double-hash.
+    A camada de Service agora é responsável pelo hashing assíncrono.
+    """
+    return key
 
 
 def normalize_lower(key: str):

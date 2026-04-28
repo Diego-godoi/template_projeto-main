@@ -39,10 +39,10 @@ def test_normalize_lower():
 
 
 def test_normalize_password():
-    # Retorna o hash bcrypt
-    hashed = validators.normalize_password(b"senha123")
-    assert hashed != b"senha123"
-    assert len(hashed) > 10
+    # Agora apenas retorna o valor (hashing movido para service)
+    original = b"senha123"
+    result = validators.normalize_password(original)
+    assert result == original
 
     assert validators.normalize_password(None) is None
     assert validators.normalize_password(b"") == b""

@@ -14,7 +14,7 @@ router = APIRouter(prefix="/user-roles", tags=["UserRoles"])
     response_model=schema.ResponseUserRoles,
     status_code=status.HTTP_200_OK,
 )
-def get_user_roles(
+async def get_user_roles(
     query_parameters: QueryParametersDep,
     session: _db,
     Authentication: dict = Security(
@@ -22,7 +22,7 @@ def get_user_roles(
     ),
 ) -> schema.ResponseUserRoles:
     """Realiza requisiçoes tipo **GET** em **UserRoles** models"""
-    return UserRolesService.get_user_roles(query_parameters, session)
+    return await UserRolesService.get_user_roles(query_parameters, session)
 
 
 @router.post(
@@ -30,7 +30,7 @@ def get_user_roles(
     response_model=schema.GetUserRoles,
     status_code=status.HTTP_201_CREATED,
 )
-def create_user_roles(
+async def create_user_roles(
     json_data: schema.PostUserRoles,
     session: _db,
     Authentication: dict = Security(
@@ -38,7 +38,7 @@ def create_user_roles(
     ),
 ) -> schema.GetUserRoles:
     """Recebe uma requisição tipo `POST` contendo dados referente a **UserRoles**"""
-    return UserRolesService.create_user_role(json_data, session)
+    return await UserRolesService.create_user_role(json_data, session)
 
 
 @router.patch(
@@ -46,7 +46,7 @@ def create_user_roles(
     response_model=schema.GetUserRoles,
     status_code=status.HTTP_200_OK,
 )
-def update_user_roles_by_uuid(
+async def update_user_roles_by_uuid(
     id: UUID4,
     json_data: schema.PatchUserRoles,
     session: _db,
@@ -55,14 +55,14 @@ def update_user_roles_by_uuid(
     ),
 ) -> schema.GetUserRoles:
     """Atualiza um dado na tabela **UserRoles** a partir de um UUID valido"""
-    return UserRolesService.patch_user_role(id, json_data, session)
+    return await UserRolesService.patch_user_role(id, json_data, session)
 
 
 @router.delete(
     "/{id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-def delete_user_roles_by_uuid(
+async def delete_user_roles_by_uuid(
     id: UUID4,
     session: _db,
     Authentication: dict = Security(
@@ -70,5 +70,5 @@ def delete_user_roles_by_uuid(
     ),
 ):
     """Deleta um dado na tabela **UserRoles** a partir do seu UUID"""
-    UserRolesService.delete_user_role(id, session)
+    await UserRolesService.delete_user_role(id, session)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

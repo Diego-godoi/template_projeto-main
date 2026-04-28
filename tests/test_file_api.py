@@ -29,7 +29,8 @@ def override_upload_dir(tmp_path):
     settings.UPLOAD_DIR = original_dir
 
 
-def test_post_file_success(client: TestClient, override_upload_dir):
+@pytest.mark.asyncio
+async def test_post_file_success(client: TestClient, override_upload_dir):
     app.dependency_overrides[get_current_payload] = override_user
     try:
         # Simular um arquivo em memória
@@ -37,7 +38,9 @@ def test_post_file_success(client: TestClient, override_upload_dir):
         files = {"file": ("test_api.txt", file_content, "text/plain")}
         data = {"type_data": "text"}
 
-        response = client.post(f"{API_PREFIX}/file/", files=files, data=data)
+        response = await client.post(
+            f"{API_PREFIX}/file/", files=files, data=data
+        )
     finally:
         app.dependency_overrides.pop(get_current_payload, None)
 
@@ -52,7 +55,10 @@ def test_post_file_success(client: TestClient, override_upload_dir):
         assert f.read() == file_content
 
 
-def test_get_file_by_filename_success(client: TestClient, override_upload_dir):
+@pytest.mark.asyncio
+async def test_get_file_by_filename_success(
+    client: TestClient, override_upload_dir
+):
     app.dependency_overrides[get_current_payload] = override_user
     try:
         import uuid
@@ -64,7 +70,7 @@ def test_get_file_by_filename_success(client: TestClient, override_upload_dir):
             f.write(b"Conteudo Mockado GET")
 
         # Faz o get pelo UUID
-        response = client.get(f"{API_PREFIX}/file/{mock_filename}")
+        response = await client.get(f"{API_PREFIX}/file/{mock_filename}")
     finally:
         app.dependency_overrides.pop(get_current_payload, None)
 
@@ -72,7 +78,8 @@ def test_get_file_by_filename_success(client: TestClient, override_upload_dir):
     assert response.content == b"Conteudo Mockado GET"
 
 
-def test_get_file_by_filename_not_found(
+@pytest.mark.asyncio
+async def test_get_file_by_filename_not_found(
     client: TestClient, override_upload_dir
 ):
     app.dependency_overrides[get_current_payload] = override_user
@@ -81,7 +88,7 @@ def test_get_file_by_filename_not_found(
 
         fail_filename = str(uuid.uuid4())  # ID válido mas arquivo Inexistente
 
-        response = client.get(f"{API_PREFIX}/file/{fail_filename}")
+        response = await client.get(f"{API_PREFIX}/file/{fail_filename}")
     finally:
         app.dependency_overrides.pop(get_current_payload, None)
 

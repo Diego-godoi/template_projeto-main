@@ -94,6 +94,26 @@ class PatchRoles(BaseModel):
     name: str | None = Field(None, description="Novo nome do papel")
     description: str | None = Field(None, description="Nova descrição")
 
+    @model_validator(mode="before")
+    @classmethod
+    def validators_roles(self, data) -> "PostRoles":
+        errors = []
+        try:
+            data["name"] = util.normalize_capitalize(data["name"])
+        except Exception as e:
+            errors.append(
+                {
+                    "loc": ["body", "name"],
+                    "msg": e.detail if hasattr(e, "detail") else str(e),
+                    "type": "value_error",
+                }
+            )
+
+        if errors:
+            raise error.ValidationException(errors)
+
+        return data
+
 
 class ResponseRoles(BaseModel):
     meta: MetaData

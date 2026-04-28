@@ -1,5 +1,7 @@
 from uuid import UUID
 
+from sqlalchemy import select
+
 from app import error
 from app.db import _db
 from app.models import Roles
@@ -13,7 +15,7 @@ class RolesService:
     """
 
     @staticmethod
-    def get_roles(query_params: QueryParametersDep, session: _db):
+    async def get_roles(query_params: QueryParametersDep, session: _db):
         """Busca, filtra e pagina os registros de Roles.
 
         Utiliza os parâmetros de consulta fornecidos para filtrar
@@ -31,10 +33,10 @@ class RolesService:
 
         query_args = vars(query_params)
 
-        return Roles.query_params(_db=session, **query_args)
+        return await Roles.query_params(_db=session, **query_args)
 
     @staticmethod
-    def create_role(schema: PostRoles, session: _db):
+    async def create_role(schema: PostRoles, session: _db):
         """Cria uma nova role no banco de dados.
 
         Valida todas as regras de negócio e acumula os erros antes de
@@ -49,7 +51,9 @@ class RolesService:
         """
         errors = []
 
-        if Roles.get(_db=session, attribute="name", value=schema.name):
+        stmt = select(Roles).where(Roles.name == schema.name).limit(1)
+        existing_role = (await session.execute(stmt)).scalars().first()
+        if existing_role:
             errors.append(
                 {
                     "loc": ["body", "name"],
@@ -63,12 +67,12 @@ class RolesService:
 
         data = Roles(**schema.model_dump())
         session.add(data)
-        session.commit()
-        session.refresh(data)
+        await session.commit()
+        await session.refresh(data)
         return data
 
     @staticmethod
-    def patch_role(id: UUID, schema: PatchRoles, session: _db):
+    async def patch_role(id: UUID, schema: PatchRoles, session: _db):
         """Atualiza parcialmente uma role existente no banco de dados.
 
         Valida todas as regras de negócio e acumula os erros antes de
@@ -86,7 +90,7 @@ class RolesService:
         Returns:
             Roles: O objeto Roles atualizado.
         """
-        role_to_update = session.get(Roles, id)
+        role_to_update = await session.get(Roles, id)
 
         if not role_to_update:
             raise error.CustomException(404, "ID não encontrado")
@@ -95,9 +99,10 @@ class RolesService:
         errors = []
 
         if "name" in update_data:
-            existing_role = Roles.get(
-                _db=session, attribute="name", value=update_data["name"]
+            stmt = (
+                select(Roles).where(Roles.name == update_data["name"]).limit(1)
             )
+            existing_role = (await session.execute(stmt)).scalars().first()
             if existing_role and existing_role.id != id:
                 errors.append(
                     {
@@ -114,13 +119,13 @@ class RolesService:
             setattr(role_to_update, key, value)
 
         session.add(role_to_update)
-        session.commit()
-        session.refresh(role_to_update)
+        await session.commit()
+        await session.refresh(role_to_update)
 
         return role_to_update
 
     @staticmethod
-    def delete_role(id: UUID, session: _db):
+    async def delete_role(id: UUID, session: _db):
         """Deleta uma role existente do banco de dados.
 
         Args:
@@ -134,10 +139,10 @@ class RolesService:
         Returns:
             Roles: O objeto Roles que foi deletado (em estado 'detached').
         """
-        role_to_delete = session.get(Roles, id)
+        role_to_delete = await session.get(Roles, id)
 
         if not role_to_delete:
             raise error.CustomException(404, "ID não encontrado")
 
-        session.delete(role_to_delete)
-        session.commit()
+        await session.delete(role_to_delete)
+        await session.commit()

@@ -8,8 +8,7 @@ garantindo rollback automático ao final — sem efeitos colaterais no banco.
 
 import pytest
 from faker import Faker
-from fastapi import HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import error, schema
 from app.services.users_service import UsersService
@@ -30,19 +29,19 @@ def _make_post_schema(**overrides) -> schema.PostUsers:
 
     defaults = {
         "email": fake.unique.email(),
-        "password": senha_raw.encode(),  # será hasheado pelo model_validator
+        "password": senha_raw.encode(),
         "full_name": fake.name(),
         "cpf": cpf_raw,
         "active": True,
     }
     defaults.update(overrides)
-    return schema.PostUsers(**defaults)
+    return schema.PostUsers.model_validate(defaults)
 
 
-def _criar_usuario(session: Session) -> tuple:
+async def _criar_usuario(session: AsyncSession) -> tuple:
     """Cria um usuário no banco e retorna (objeto_criado, schema_usado)."""
     post = _make_post_schema()
-    user = UsersService.create_user(post, session)
+    user = await UsersService.create_user(post, session)
     return user, post
 
 
@@ -51,9 +50,10 @@ def _criar_usuario(session: Session) -> tuple:
 # ---------------------------------------------------------------------------
 
 
-def test_cria_usuario_com_sucesso(db_session: Session):
+@pytest.mark.asyncio
+async def test_cria_usuario_com_sucesso(async_db_session: AsyncSession):
     """Criação de usuário com dados válidos retorna objeto Users persistido."""
-    user, post = _criar_usuario(db_session)
+    user, post = await _criar_usuario(async_db_session)
 
     assert user.id is not None
     assert user.email == post.email
@@ -61,30 +61,36 @@ def test_cria_usuario_com_sucesso(db_session: Session):
     assert user.active is True
 
 
-def test_cria_usuario_email_duplicado_levanta_erro(db_session: Session):
+@pytest.mark.asyncio
+async def test_cria_usuario_email_duplicado_levanta_erro(
+    async_db_session: AsyncSession,
+):
     """Tentar criar dois usuários com o mesmo e-mail deve lançar ValidationException."""
-    user, post = _criar_usuario(db_session)
+    user, post = await _criar_usuario(async_db_session)
 
     # Segundo usuário com mesmo email, CPF diferente
     cpf_novo = fake.cpf().replace(".", "").replace("-", "")
     post_duplicado = _make_post_schema(email=post.email, cpf=cpf_novo)
 
     with pytest.raises(error.ValidationException) as exc_info:
-        UsersService.create_user(post_duplicado, db_session)
+        await UsersService.create_user(post_duplicado, async_db_session)
 
     erros = exc_info.value.detail
     campos = [e["loc"][-1] for e in erros]
     assert "email" in campos
 
 
-def test_cria_usuario_cpf_duplicado_levanta_erro(db_session: Session):
+@pytest.mark.asyncio
+async def test_cria_usuario_cpf_duplicado_levanta_erro(
+    async_db_session: AsyncSession,
+):
     """Tentar criar dois usuários com o mesmo CPF deve lançar ValidationException."""
-    user, post = _criar_usuario(db_session)
+    user, post = await _criar_usuario(async_db_session)
 
     post_duplicado = _make_post_schema(cpf=post.cpf)
 
     with pytest.raises(error.ValidationException) as exc_info:
-        UsersService.create_user(post_duplicado, db_session)
+        await UsersService.create_user(post_duplicado, async_db_session)
 
     erros = exc_info.value.detail
     campos = [e["loc"][-1] for e in erros]
@@ -96,19 +102,25 @@ def test_cria_usuario_cpf_duplicado_levanta_erro(db_session: Session):
 # ---------------------------------------------------------------------------
 
 
-def test_patch_usuario_com_sucesso(db_session: Session):
+@pytest.mark.asyncio
+async def test_patch_usuario_com_sucesso(async_db_session: AsyncSession):
     """Atualização parcial com nome completo diferente deve persistir a mudança."""
-    user, _ = _criar_usuario(db_session)
+    user, _ = await _criar_usuario(async_db_session)
     novo_nome = "Nome Atualizado Silva"
 
     patch = schema.PatchUsers(full_name=novo_nome)
-    atualizado = UsersService.patch_user(user.id, patch, db_session)
+    atualizado = await UsersService.patch_user(
+        user.id, patch, async_db_session
+    )
 
     assert atualizado.full_name == novo_nome
     assert atualizado.id == user.id
 
 
-def test_patch_usuario_id_inexistente_levanta_404(db_session: Session):
+@pytest.mark.asyncio
+async def test_patch_usuario_id_inexistente_levanta_404(
+    async_db_session: AsyncSession,
+):
     """Atualização com UUID inexistente deve lançar HTTPException 404."""
     import uuid
 
@@ -116,7 +128,7 @@ def test_patch_usuario_id_inexistente_levanta_404(db_session: Session):
     patch = schema.PatchUsers(full_name="Qualquer Nome")
 
     with pytest.raises(error.CustomException) as exc_info:
-        UsersService.patch_user(id_falso, patch, db_session)
+        await UsersService.patch_user(id_falso, patch, async_db_session)
 
     assert exc_info.value.status_code == 404
 
@@ -126,24 +138,30 @@ def test_patch_usuario_id_inexistente_levanta_404(db_session: Session):
 # ---------------------------------------------------------------------------
 
 
-def test_delete_usuario_com_sucesso(db_session: Session):
+@pytest.mark.asyncio
+async def test_delete_usuario_com_sucesso(async_db_session: AsyncSession):
     """Remoção de usuário existente deve retornar o objeto deletado."""
-    user, _ = _criar_usuario(db_session)
+    user, _ = await _criar_usuario(async_db_session)
     user_id = user.id
 
-    UsersService.delete_user(user_id, db_session)
+    await UsersService.delete_user(user_id, async_db_session)
 
     # Confirma que não existe mais na sessão
-    assert db_session.get(type(user), user_id) is None
+    from app.models import Users
+
+    assert await async_db_session.get(Users, user_id) is None
 
 
-def test_delete_usuario_id_inexistente_levanta_404(db_session: Session):
+@pytest.mark.asyncio
+async def test_delete_usuario_id_inexistente_levanta_404(
+    async_db_session: AsyncSession,
+):
     """Remoção com UUID inexistente deve lançar HTTPException 404."""
     import uuid
 
     id_falso = uuid.uuid4()
 
     with pytest.raises(error.CustomException) as exc_info:
-        UsersService.delete_user(id_falso, db_session)
+        await UsersService.delete_user(id_falso, async_db_session)
 
     assert exc_info.value.status_code == 404

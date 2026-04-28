@@ -5,7 +5,7 @@ from typing import Union
 import jwt
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer, SecurityScopes
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import error, models
 from app.core.config import settings
@@ -60,13 +60,13 @@ def encode_token(sub, exp: Union[int, float, None] = None) -> str:
     return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
 
 
-def _get_user_from_sub(sub: dict, db: Session) -> models.Users:
+async def _get_user_from_sub(sub: dict, db: AsyncSession) -> models.Users:
     user_id = sub.get("user_id")
     if not user_id:
         raise error.CustomException(
             status_code=401, detail="Desculpe, você não tem permissão."
         )
-    user = models.Users.get(db, "id", user_id)
+    user = await db.get(models.Users, user_id)
     if not user:
         raise error.CustomException(
             status_code=401, detail="Desculpe, usuário não encontrado."
@@ -78,9 +78,9 @@ def _get_user_from_sub(sub: dict, db: Session) -> models.Users:
     return user
 
 
-def decode_token(
+async def decode_token(
     token: str,
-    db: Session,
+    db: AsyncSession,
     scopes: list[str] | None = None,
 ) -> dict:
     """
@@ -101,7 +101,7 @@ def decode_token(
                 401, f"Desculpe, o token é inválido. Tipo de sub: {type(sub)}"
             )
 
-        user = _get_user_from_sub(sub, db)
+        user = await _get_user_from_sub(sub, db)
         role_names = [
             ur.role.name.lower()
             for ur in (user.user_roles or [])
@@ -135,7 +135,7 @@ def decode_token(
 async def get_current_payload(
     security_scopes: SecurityScopes,
     token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Dependency genérica que valida JWT e aplica scopes (OAuth2)."""
-    return decode_token(token, db, scopes=list(security_scopes.scopes))
+    return await decode_token(token, db, scopes=list(security_scopes.scopes))

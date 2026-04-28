@@ -14,17 +14,16 @@ __all__ = ["template_string", "send_email"]
 
 
 def template_string(template_name: str, content: dict) -> str:
-    """Cria uma estring do template a ser utilizado para envio de email
+    """Cria uma string do template a ser utilizado para envio de email.
 
     Args:
-        template_name (str): Nome do template a ser usado
-        content (dict): conteudo do template
+        template_name (str): Nome do template a ser usado.
+        content (dict): Conteúdo do template.
 
     Returns:
-        str: Retorna uma string do template
+        str: Retorna uma string do template renderizado.
     """
-    content["request"] = Request
-    return templates.TemplateResponse(template_name, content).body.decode()
+    return templates.get_template(template_name).render(content)
 
 
 def send_email(email_receiver: str, subject: str, body: str) -> any:

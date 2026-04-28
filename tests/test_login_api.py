@@ -1,11 +1,15 @@
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core import security
 from tests.test_users_service import _criar_usuario
 
 
-def test_post_login_success(client, db_session):
-    user, post = _criar_usuario(db_session)
+@pytest.mark.asyncio
+async def test_post_login_success(client, async_db_session: AsyncSession):
+    user, post = await _criar_usuario(async_db_session)
 
-    response = client.post(
+    response = await client.post(
         "/api/v1/login/access-token",
         data={"username": user.email, "password": "SenhaForte@123"},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -17,10 +21,13 @@ def test_post_login_success(client, db_session):
     assert data["token_type"] == "Bearer"
 
 
-def test_post_login_credenciais_incorretas(client, db_session):
-    user, post = _criar_usuario(db_session)
+@pytest.mark.asyncio
+async def test_post_login_credenciais_incorretas(
+    client, async_db_session: AsyncSession
+):
+    user, post = await _criar_usuario(async_db_session)
 
-    response = client.post(
+    response = await client.post(
         "/api/v1/login/access-token",
         data={"username": user.email, "password": "senhaincorreta"},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -30,16 +37,17 @@ def test_post_login_credenciais_incorretas(client, db_session):
     assert response.status_code in [400, 401, 422]
 
 
-def test_forgot_my_password_retorna_mensagens_iguais_para_impedir_enum_de_emails(
-    client, db_session
+@pytest.mark.asyncio
+async def test_forgot_my_password_retorna_mensagens_iguais_para_impedir_enum_de_emails(
+    client, async_db_session: AsyncSession
 ):
     from unittest.mock import patch
 
     with patch("app.util.send_email") as mock_send:
-        user, _ = _criar_usuario(db_session)
+        user, _ = await _criar_usuario(async_db_session)
 
         # 1. Envia com email EXISTENTE
-        response_existente = client.post(
+        response_existente = await client.post(
             "/api/v1/forgot-my-password/", json={"email": user.email}
         )
 
@@ -49,12 +57,12 @@ def test_forgot_my_password_retorna_mensagens_iguais_para_impedir_enum_de_emails
         )
 
         # O user ganha um código de redefinição
-        db_session.refresh(user)
+        await async_db_session.refresh(user)
         assert user.reset_password_code is not None
         assert user.reset_password_expiration is not None
 
         # 2. Envia com email INEXISTENTE
-        response_fake = client.post(
+        response_fake = await client.post(
             "/api/v1/forgot-my-password/",
             json={"email": "nao_cadastrado@teste.com"},
         )
@@ -66,21 +74,24 @@ def test_forgot_my_password_retorna_mensagens_iguais_para_impedir_enum_de_emails
         assert mock_send.call_count == 1
 
 
-def test_new_password_com_sucesso_e_expiracao(client, db_session):
+@pytest.mark.asyncio
+async def test_new_password_com_sucesso_e_expiracao(
+    client, async_db_session: AsyncSession
+):
     from datetime import datetime, timedelta
 
-    user, _ = _criar_usuario(db_session)
+    user, _ = await _criar_usuario(async_db_session)
     code = "ABC123Z"
-    hash_code = security.get_password_hash(code)
+    hash_code = await security.get_password_hash(code)
 
     # Força validade futura
     user.reset_password_code = hash_code
     user.reset_password_expiration = datetime.now() + timedelta(minutes=15)
-    db_session.flush()
+    await async_db_session.flush()
 
     # Tenta resetar
     new_pass = "NovaSenhaSegura123"
-    response = client.put(
+    response = await client.put(
         "/api/v1/new-password/",
         json={"email": user.email, "code": code, "password": new_pass},
     )
@@ -89,17 +100,17 @@ def test_new_password_com_sucesso_e_expiracao(client, db_session):
     assert response.json() == "Senha alterada"
 
     # Confirma que token resetou e nova hash funciona
-    db_session.refresh(user)
+    await async_db_session.refresh(user)
     assert user.reset_password_code is None
-    assert security.verify_password(new_pass, user.password) is True
+    assert await security.verify_password(new_pass, user.password) is True
 
     # ----
     # Cenário 2: Forçando Código Expirado
     user.reset_password_code = hash_code
     user.reset_password_expiration = datetime.now() - timedelta(minutes=15)
-    db_session.flush()
+    await async_db_session.flush()
 
-    response_expr = client.put(
+    response_expr = await client.put(
         "/api/v1/new-password/",
         json={"email": user.email, "code": code, "password": new_pass},
     )
@@ -108,18 +119,21 @@ def test_new_password_com_sucesso_e_expiracao(client, db_session):
     assert "Código expirado" in response_expr.json()["detail"]
 
 
-def test_new_password_com_codigo_invalido(client, db_session):
+@pytest.mark.asyncio
+async def test_new_password_com_codigo_invalido(
+    client, async_db_session: AsyncSession
+):
     from datetime import datetime, timedelta
 
-    user, _ = _criar_usuario(db_session)
+    user, _ = await _criar_usuario(async_db_session)
     code = "ABC123Z"
-    hash_code = security.get_password_hash(code)
+    hash_code = await security.get_password_hash(code)
 
     user.reset_password_code = hash_code
     user.reset_password_expiration = datetime.now() + timedelta(minutes=15)
-    db_session.flush()
+    await async_db_session.flush()
 
-    response = client.put(
+    response = await client.put(
         "/api/v1/new-password/",
         json={
             "email": user.email,
