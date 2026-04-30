@@ -20,7 +20,7 @@ class FileType(str, Enum):
 
 
 @router.post("/")
-def create_file(
+async def create_file(
     file: UploadFile = File(...),
     type_data: FileType = Form(...),
     Authentication: dict = Security(
@@ -51,7 +51,7 @@ def create_file(
 
     """
 
-    filename = save_file(file, type_data)
+    filename = await save_file(file, type_data)
     return filename
 
 

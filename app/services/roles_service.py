@@ -1,9 +1,9 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
-from app import error
-from app.db import _db
+from app import error, models
+from app.db import QueryBuilder, ServiceResponse, _db
 from app.models import Roles
 from app.schema import PatchRoles, PostRoles
 from app.util import QueryParametersDep
@@ -31,9 +31,25 @@ class RolesService:
                   o 'total' de registros encontrados.
         """
 
-        query_args = vars(query_params)
-
-        return await Roles.query_params(_db=session, **query_args)
+        meta = {
+            "total_items": (
+                await session.execute(select(func.count(models.Roles.id)))
+            ).scalar()
+        }
+        stmt = (
+            QueryBuilder(models.Roles)
+            .filter(
+                query_params.attribute,
+                query_params.value,
+                query_params.operator,
+            )
+            .filter_json(query_params.json_string, query_params.operator)
+            .include_only(query_params.include)
+            .paginate(query_params.skip, query_params.limit)
+            .build()
+        )
+        data = (await session.execute(stmt)).scalars().unique().all()
+        return ServiceResponse(data=data, meta=meta)
 
     @staticmethod
     async def create_role(schema: PostRoles, session: _db):
@@ -146,3 +162,5 @@ class RolesService:
 
         await session.delete(role_to_delete)
         await session.commit()
+
+        return role_to_delete

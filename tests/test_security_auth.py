@@ -142,6 +142,9 @@ async def test_decode_token_restricao_de_scopes(
     user.user_roles.append(UserRoles(role_id=str(role_manager.id)))
     await async_db_session.commit()
 
+    # Simula uma nova request limpando o Identity Map
+    async_db_session.expunge_all()
+
     token = auth.encode_token({"user_id": str(user.id)}, exp=15)
 
     # Deve permitir user e manager

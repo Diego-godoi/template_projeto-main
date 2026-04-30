@@ -2,10 +2,10 @@
 
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app import core, error, models, schema
-from app.db import _db
+from app.db import QueryBuilder, ServiceResponse, _db
 from app.util import QueryParametersDep
 
 
@@ -29,9 +29,25 @@ class UsersService:
             dict: Um dicionário contendo a lista de 'items' (Users) e
                   o 'total' de registros encontrados.
         """
-        query_args = vars(query_params)
-        # Segue o padrão do RolesService, delegando ao modelo com Sessão
-        return await models.Users.query_params(_db=session, **query_args)
+        meta = {
+            "total_items": (
+                await session.execute(select(func.count(models.Users.id)))
+            ).scalar()
+        }
+        stmt = (
+            QueryBuilder(models.Users)
+            .filter(
+                query_params.attribute,
+                query_params.value,
+                query_params.operator,
+            )
+            .filter_json(query_params.json_string, query_params.operator)
+            .include_only(query_params.include)
+            .paginate(query_params.skip, query_params.limit)
+            .build()
+        )
+        data = (await session.execute(stmt)).scalars().unique().all()
+        return ServiceResponse(data=data, meta=meta)
 
     @staticmethod
     async def create_user(schema: schema.PostUsers, session: _db):

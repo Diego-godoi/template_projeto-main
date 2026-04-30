@@ -98,7 +98,8 @@ def test_generate_cpf_validez():
 # ==========================================
 
 
-def test_save_file_video_sucesso(monkeypatch, tmp_path):
+@pytest.mark.asyncio
+async def test_save_file_video_sucesso(monkeypatch, tmp_path):
     """Testa salvar um arquivo de vídeo autêntico apontando para temp_dir."""
     monkeypatch.setattr(
         "app.util.functions.settings.UPLOAD_DIR", str(tmp_path)
@@ -115,14 +116,15 @@ def test_save_file_video_sucesso(monkeypatch, tmp_path):
         # UploadFile do FastAPI
         file_mock = UploadFile(filename="video.mp4", file=f)
         try:
-            saved_name = functions.save_file(file_mock, "video")
+            saved_name = await functions.save_file(file_mock, "video")
             assert saved_name is not None
             assert os.path.exists(os.path.join(str(tmp_path), saved_name))
         finally:
             file_mock.file.close()
 
 
-def test_save_file_formato_invalido(monkeypatch, tmp_path):
+@pytest.mark.asyncio
+async def test_save_file_formato_invalido(monkeypatch, tmp_path):
     """Tentando passar o vídeo mas pedindo validação de imagem deve falhar."""
     monkeypatch.setattr(
         "app.util.functions.settings.UPLOAD_DIR", str(tmp_path)
@@ -135,7 +137,7 @@ def test_save_file_formato_invalido(monkeypatch, tmp_path):
     with open(video_path, "rb") as f:
         file_mock = UploadFile(filename="video.mp4", file=f)
         with pytest.raises(CustomException) as exc_info:
-            functions.save_file(
+            await functions.save_file(
                 file_mock, "image"
             )  # magic.from_buffer detectará "video"
 
@@ -143,7 +145,8 @@ def test_save_file_formato_invalido(monkeypatch, tmp_path):
         assert "Formato de media invalido" in exc_info.value.detail
 
 
-def test_save_file_dir_nao_encontrado(monkeypatch):
+@pytest.mark.asyncio
+async def test_save_file_dir_nao_encontrado(monkeypatch):
     """Garante que a função aborte se UPLOAD_DIR for inválido."""
     monkeypatch.setattr(
         "app.util.functions.settings.UPLOAD_DIR", "/dir/inexistente/invalido"
@@ -153,7 +156,7 @@ def test_save_file_dir_nao_encontrado(monkeypatch):
         file_mock = UploadFile(
             filename="teste.txt", file=open(os.devnull, "rb")
         )
-        functions.save_file(file_mock, "video")
+        await functions.save_file(file_mock, "video")
 
     assert exc_info.value.status_code == 400
     assert "diretorio não encontrado" in exc_info.value.detail

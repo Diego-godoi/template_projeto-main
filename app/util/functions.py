@@ -66,7 +66,7 @@ def camel_to_snake_case(camel_str):
     return kebab_str
 
 
-def save_file(file: UploadFile, type: str) -> str:
+async def save_file(file: UploadFile, type: str) -> str:
     """Salva arquivos
 
     Args:
@@ -90,7 +90,8 @@ def save_file(file: UploadFile, type: str) -> str:
             detail="Arquivo ou diretorio não encontrado",
         )
     w_file = BytesIO()
-    w_file.write(file.file.read())
+    conteudo = await file.read()
+    w_file.write(conteudo)
     w_file.seek(0)
     if str(magic.from_buffer(w_file.read(), True)).split("/")[0] != type:
         raise error.CustomException(422, "Formato de media invalido")

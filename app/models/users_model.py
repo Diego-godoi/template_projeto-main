@@ -43,6 +43,6 @@ class Users(Base):
     user_roles: Mapped[list["UserRoles"]] = relationship(
         "UserRoles",
         back_populates="user",
-        lazy="joined",
+        lazy="selectin",
         cascade="all, delete-orphan",
     )

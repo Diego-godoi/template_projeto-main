@@ -165,3 +165,119 @@ async def test_delete_usuario_id_inexistente_levanta_404(
         await UsersService.delete_user(id_falso, async_db_session)
 
     assert exc_info.value.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Testes de listagem (GET)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_users_retorna_service_response_vazio(
+    async_db_session: AsyncSession,
+):
+    """get_users sem dados no banco deve retornar ServiceResponse com lista vazia."""
+    from app.util.annotated import QueryParameters
+
+    qp = QueryParameters(
+        all_data=True,
+        attribute=None,
+        value=None,
+        json_string=None,
+        operator="=",
+        skip=0,
+        limit=100,
+        include=None,
+    )
+    result = await UsersService.get_users(qp, async_db_session)
+
+    assert hasattr(result, "data")
+    assert hasattr(result, "meta")
+    assert isinstance(result.data, list)
+    assert result.meta["total_items"] >= 0
+
+
+@pytest.mark.asyncio
+async def test_get_users_retorna_usuarios_criados(
+    async_db_session: AsyncSession,
+):
+    """get_users deve retornar os usuários previamente criados."""
+    from app.util.annotated import QueryParameters
+
+    await _criar_usuario(async_db_session)
+    await _criar_usuario(async_db_session)
+
+    qp = QueryParameters(
+        all_data=True,
+        attribute=None,
+        value=None,
+        json_string=None,
+        operator="=",
+        skip=0,
+        limit=100,
+        include=None,
+    )
+    result = await UsersService.get_users(qp, async_db_session)
+
+    assert len(result.data) >= 2
+    assert result.meta["total_items"] >= 2
+
+
+# ---------------------------------------------------------------------------
+# Testes de validação de duplicidade no PATCH
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_patch_usuario_email_duplicado_levanta_erro(
+    async_db_session: AsyncSession,
+):
+    """Patch com email já usado por outro usuário deve lançar ValidationException."""
+    user1, _ = await _criar_usuario(async_db_session)
+    user2, _ = await _criar_usuario(async_db_session)
+
+    patch = schema.PatchUsers(email=user1.email)
+
+    with pytest.raises(error.ValidationException) as exc_info:
+        await UsersService.patch_user(user2.id, patch, async_db_session)
+
+    erros = exc_info.value.detail
+    campos = [e["loc"][-1] for e in erros]
+    assert "email" in campos
+
+
+@pytest.mark.asyncio
+async def test_patch_usuario_cpf_duplicado_levanta_erro(
+    async_db_session: AsyncSession,
+):
+    """Patch com CPF já usado por outro usuário deve lançar ValidationException."""
+    user1, _ = await _criar_usuario(async_db_session)
+    user2, _ = await _criar_usuario(async_db_session)
+
+    patch = schema.PatchUsers(cpf=user1.cpf)
+
+    with pytest.raises(error.ValidationException) as exc_info:
+        await UsersService.patch_user(user2.id, patch, async_db_session)
+
+    erros = exc_info.value.detail
+    campos = [e["loc"][-1] for e in erros]
+    assert "cpf" in campos
+
+
+@pytest.mark.asyncio
+async def test_patch_usuario_com_senha_nova(
+    async_db_session: AsyncSession,
+):
+    """Patch com campo password deve hashear a senha corretamente."""
+    from app.core import security
+
+    user, _ = await _criar_usuario(async_db_session)
+    nova_senha = "NovaSenha@999"
+
+    patch = schema.PatchUsers(password=nova_senha.encode())
+    atualizado = await UsersService.patch_user(
+        user.id, patch, async_db_session
+    )
+
+    # A senha deve ter sido hasheada, não armazenada crua
+    assert await security.verify_password(nova_senha, atualizado.password)
