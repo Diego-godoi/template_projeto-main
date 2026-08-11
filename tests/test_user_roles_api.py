@@ -1,67 +1,71 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_payload
 from app.core.config import settings
-from app.main import app
+
+from .factories import (
+    PatchUserRolesFactory,
+    RolesFactory,
+    UsersFactory,
+)
 
 
 @pytest.mark.asyncio
 async def test_user_roles_crud_fluxo_completo(
-    client, async_db_session: AsyncSession
+    client, async_db_session: AsyncSession, auth_as
 ):
     API_PREFIX = settings.API_URL_PREFIX
 
-    # Precisamos criar um user e uma role base para vincular
-    from tests.test_roles_service import _criar_role
-    from tests.test_users_service import _criar_usuario
+    user1 = UsersFactory.create()
+    role1 = RolesFactory.create(name="ROLE_LINK_1")
 
-    user1, _ = await _criar_usuario(async_db_session)
-    role1 = await _criar_role(async_db_session, name="ROLE_LINK_1")
+    await async_db_session.flush()
 
-    async def override_admin():
-        return {"user_id": str(user1.id), "scopes": ["admin"]}
+    auth_as(
+        user1,
+        [
+            "read:user-roles",
+            "write:user-roles",
+            "update:user-roles",
+            "delete:user-roles",
+        ],
+    )
 
-    app.dependency_overrides[get_current_payload] = override_admin
-    try:
-        # 1. Post (Create vínculo)
-        payload = {"user_id": str(user1.id), "role_id": str(role1.id)}
+    payload = PatchUserRolesFactory.build(
+        user_id=user1.id, role_id=role1.id
+    ).model_dump(mode="json")
 
-        resp_post = await client.post(
-            f"{API_PREFIX}/user-roles/", json=payload
-        )
-        assert resp_post.status_code == 201
-        data = resp_post.json()
-        assert data["user_id"] == str(user1.id)
-        assert data["role_id"] == str(role1.id)
-        ur_id = data["id"]
+    resp_post = await client.post(f"{API_PREFIX}/user-roles/", json=payload)
+    assert resp_post.status_code == 201
+    data = resp_post.json()
+    assert data["user_id"] == str(user1.id)
+    assert data["role_id"] == str(role1.id)
+    ur_id = data["id"]
 
-        # 2. Get (Read list)
-        resp_get = await client.get(f"{API_PREFIX}/user-roles/")
-        assert resp_get.status_code == 200
-        get_data = resp_get.json()
-        assert "data" in get_data
-        assert any(ur["id"] == ur_id for ur in get_data["data"])
+    # 2. Get (Read list)
+    resp_get = await client.get(f"{API_PREFIX}/user-roles/")
+    assert resp_get.status_code == 200
+    get_data = resp_get.json()
+    assert "data" in get_data
+    assert any(ur["id"] == ur_id for ur in get_data["data"])
 
-        # 3. Patch (Update vínculo mudando a Role)
-        role2 = await _criar_role(async_db_session, name="ROLE_LINK_2")
-        patch_payload = {"role_id": str(role2.id)}
+    # 3. Patch (Update vínculo mudando a Role)
+    role2 = RolesFactory.create(name="ROLE_LINK_2")
+    await async_db_session.flush()
+    patch_payload = PatchUserRolesFactory.build(
+        role_id=role2.id, user_id=user1.id
+    ).model_dump(mode="json")
 
-        resp_patch = await client.patch(
-            f"{API_PREFIX}/user-roles/{ur_id}", json=patch_payload
-        )
-        assert resp_patch.status_code == 200
-        assert resp_patch.json()["role_id"] == str(role2.id)
+    resp_patch = await client.patch(
+        f"{API_PREFIX}/user-roles/{ur_id}", json=patch_payload
+    )
+    assert resp_patch.status_code == 200
+    assert resp_patch.json()["role_id"] == str(role2.id)
 
-        # 4. Delete (Remove vínculo)
-        resp_delete = await client.delete(f"{API_PREFIX}/user-roles/{ur_id}")
-        assert resp_delete.status_code == 204
+    # 4. Delete (Remove vínculo)
+    resp_delete = await client.delete(f"{API_PREFIX}/user-roles/{ur_id}")
+    assert resp_delete.status_code == 204
 
-        # Consulta não tem mais o vínculo
-        resp_get_after = await client.get(f"{API_PREFIX}/user-roles/")
-        assert not any(
-            ur["id"] == ur_id for ur in resp_get_after.json()["data"]
-        )
-
-    finally:
-        app.dependency_overrides.pop(get_current_payload, None)
+    # Consulta não tem mais o vínculo
+    resp_get_after = await client.get(f"{API_PREFIX}/user-roles/")
+    assert not any(ur["id"] == ur_id for ur in resp_get_after.json()["data"])

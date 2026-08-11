@@ -6,9 +6,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from .base_schema import MetaData
 
 __all__ = [
-    "PostUserRoles",
     "GetUserRoles",
     "PatchUserRoles",
+    "PostUserRoles",
     "ResponseUserRoles",
 ]
 

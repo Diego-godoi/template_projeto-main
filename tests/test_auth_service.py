@@ -6,37 +6,15 @@ Cobre os caminhos de login, reset de senha e edge cases de validação,
 operando sobre sessão transacional isolada (conftest.py).
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
-from faker import Faker
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import core, error, models, schema
+from app import core, error, schema
 from app.services.auth_service import AuthService
 
-fake = Faker("pt_BR")
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-async def _criar_usuario_com_senha(
-    session: AsyncSession,
-    password: str = "SenhaForte@123",
-    active: bool = True,
-) -> tuple[models.Users, str]:
-    """Cria um usuário com senha conhecida para testes de login."""
-    from app.services.users_service import UsersService
-    from tests.test_users_service import _make_post_schema
-
-    post = _make_post_schema(active=active)
-    user = await UsersService.create_user(post, session)
-    # A senha crua é sempre "SenhaForte@123" do _make_post_schema
-    return user, password
-
+from .factories import UsersFactory
 
 # ---------------------------------------------------------------------------
 # Testes de Login
@@ -46,15 +24,19 @@ async def _criar_usuario_com_senha(
 @pytest.mark.asyncio
 async def test_login_com_sucesso(async_db_session: AsyncSession):
     """Login com credenciais válidas deve retornar (user, sub)."""
-    user, senha = await _criar_usuario_com_senha(async_db_session)
+    raw_password = "SenhaForte@123"
+    hashed_password = await core.get_password_hash(raw_password)
 
-    result_user, sub = await AuthService.login(
-        user.email, senha, async_db_session
+    user = UsersFactory.create(password=hashed_password, active=True)
+    await async_db_session.flush()
+
+    result_user, payload = await AuthService.login(
+        user.email, raw_password, async_db_session
     )
 
     assert result_user.id == user.id
-    assert sub["user_id"] == str(user.id)
-    assert isinstance(sub["scopes"], list)
+    assert payload["sub"] == str(user.id)
+    assert isinstance(payload["scopes"], list)
 
 
 @pytest.mark.asyncio
@@ -87,7 +69,9 @@ async def test_login_senha_incorreta_levanta_400(
     async_db_session: AsyncSession,
 ):
     """Login com senha incorreta deve lançar CustomException 400."""
-    user, _ = await _criar_usuario_com_senha(async_db_session)
+    hashed_password = await core.get_password_hash("SenhaForte@123")
+    user = UsersFactory.create(password=hashed_password)
+    await async_db_session.flush()
 
     with pytest.raises(error.CustomException) as exc_info:
         await AuthService.login(user.email, "SenhaErrada999", async_db_session)
@@ -100,16 +84,14 @@ async def test_login_usuario_inativo_levanta_401(
     async_db_session: AsyncSession,
 ):
     """Login de usuário inativo deve lançar CustomException 401."""
-    user, senha = await _criar_usuario_com_senha(
-        async_db_session, active=False
-    )
-    # Forçar inativo caso o schema não respeite
-    user.active = False
-    async_db_session.add(user)
-    await async_db_session.commit()
+    raw_password = "SenhaForte@123"
+    hashed_password = await core.get_password_hash(raw_password)
+
+    user = UsersFactory.create(active=False, password=hashed_password)
+    await async_db_session.flush()
 
     with pytest.raises(error.CustomException) as exc_info:
-        await AuthService.login(user.email, senha, async_db_session)
+        await AuthService.login(user.email, raw_password, async_db_session)
 
     assert exc_info.value.status_code == 401
     assert "Inativo" in exc_info.value.detail
@@ -140,7 +122,8 @@ async def test_request_password_reset_usuario_existente_gera_codigo(
     """Requisitar reset para email existente deve persistir código e retornar payload."""
     from unittest.mock import patch
 
-    user, _ = await _criar_usuario_com_senha(async_db_session)
+    user = UsersFactory.create()
+    await async_db_session.flush()
 
     with patch(
         "app.services.auth_service.util.template_string",
@@ -152,7 +135,7 @@ async def test_request_password_reset_usuario_existente_gera_codigo(
 
     assert "instruções serão enviadas" in message
     assert email_payload is not None
-    to, subject, body = email_payload
+    to, _subject, _body = email_payload
     assert to == user.email
 
     await async_db_session.refresh(user)
@@ -163,14 +146,15 @@ async def test_request_password_reset_usuario_existente_gera_codigo(
 @pytest.mark.asyncio
 async def test_reset_password_com_sucesso(async_db_session: AsyncSession):
     """Reset de senha com código válido deve alterar a senha."""
-    user, _ = await _criar_usuario_com_senha(async_db_session)
+    user = UsersFactory.create()
+    await async_db_session.flush()
 
     code = "AB1234"
     hash_code = await core.get_password_hash(code)
     user.reset_password_code = hash_code
-    user.reset_password_expiration = datetime.now() + timedelta(minutes=15)
-    async_db_session.add(user)
-    await async_db_session.commit()
+    user.reset_password_expiration = datetime.now(timezone.utc) + timedelta(
+        minutes=15
+    )
 
     data = schema.ResetPassword(
         email=user.email, code=code, password="NovaSenha@456"
@@ -203,14 +187,15 @@ async def test_reset_password_codigo_expirado_levanta_401(
     async_db_session: AsyncSession,
 ):
     """Reset com código expirado deve lançar 401."""
-    user, _ = await _criar_usuario_com_senha(async_db_session)
+    user = UsersFactory.create()
+    await async_db_session.flush()
 
     code = "AB1234"
     hash_code = await core.get_password_hash(code)
     user.reset_password_code = hash_code
-    user.reset_password_expiration = datetime.now() - timedelta(minutes=15)
-    async_db_session.add(user)
-    await async_db_session.commit()
+    user.reset_password_expiration = datetime.now(timezone.utc) - timedelta(
+        minutes=15
+    )
 
     data = schema.ResetPassword(
         email=user.email, code=code, password="NovaSenha@456"
@@ -228,14 +213,15 @@ async def test_reset_password_codigo_incorreto_levanta_401(
     async_db_session: AsyncSession,
 ):
     """Reset com código incorreto deve lançar 401."""
-    user, _ = await _criar_usuario_com_senha(async_db_session)
+    user = UsersFactory.create()
+    await async_db_session.flush()
 
     code = "AB1234"
     hash_code = await core.get_password_hash(code)
     user.reset_password_code = hash_code
-    user.reset_password_expiration = datetime.now() + timedelta(minutes=15)
-    async_db_session.add(user)
-    await async_db_session.commit()
+    user.reset_password_expiration = datetime.now(timezone.utc) + timedelta(
+        minutes=15
+    )
 
     data = schema.ResetPassword(
         email=user.email, code="ERRADO", password="NovaSenha@456"

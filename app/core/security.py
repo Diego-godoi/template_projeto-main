@@ -7,6 +7,8 @@ from app import error
 
 __all__ = ["get_password_hash", "verify_password"]
 
+logger = logging.getLogger(__name__)
+
 
 async def verify_password(
     plain_password: str | bytes, hashed_password: str | bytes
@@ -23,8 +25,8 @@ async def verify_password(
         return await asyncio.to_thread(
             lambda: bcrypt.checkpw(plain_password, hashed_password)
         )
-    except Exception as e:
-        logging.error(
+    except Exception as e:  # noqa: BLE001
+        logger.error(
             "Exceção inesperada capturada [%s]: %s", type(e).__name__, str(e)
         )
         raise error.CustomException(
@@ -40,8 +42,8 @@ async def get_password_hash(password: str | bytes) -> bytes:
         return await asyncio.to_thread(
             lambda: bcrypt.hashpw(password, bcrypt.gensalt())
         )
-    except Exception as e:
-        logging.error(
+    except Exception as e:  # noqa: BLE001
+        logger.error(
             "Exceção inesperada capturada [%s]: %s", type(e).__name__, str(e)
         )
         raise error.CustomException(

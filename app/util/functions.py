@@ -6,6 +6,7 @@ import string
 import uuid
 from io import BytesIO
 
+import anyio
 import magic
 from fastapi import UploadFile
 
@@ -13,17 +14,17 @@ from app import error
 from app.core.config import settings
 
 __all__ = [
-    "generate_cpf",
-    "save_file",
-    "delete_file",
-    "save_csv_file",
-    "list_files",
-    "generate_code",
     "camel_to_kebab",
     "camel_to_snake_case",
+    "delete_file",
+    "generate_code",
+    "generate_cpf",
+    "list_files",
     "pascal_to_camel_case",
-    "pascal_to_snake_case",
     "pascal_to_kebab_case",
+    "pascal_to_snake_case",
+    "save_csv_file",
+    "save_file",
     "snake_to_pascal_case",
 ]
 
@@ -98,8 +99,8 @@ async def save_file(file: UploadFile, type: str) -> str:
     w_file.seek(0)
     name = str(uuid.uuid4())
     filename = os.path.join(path, name)
-    with open(filename, "wb") as f:
-        f.write(w_file.getbuffer())
+    async with await anyio.open_file(filename, "wb") as f:
+        await f.write(w_file.getbuffer())
     return name
 
 

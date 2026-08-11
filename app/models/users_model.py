@@ -18,7 +18,7 @@ class Users(Base):
 
     Attributes:
         email (str): Endereço de e-mail único usado para autenticação.
-        full_name (str | None): Nome completo do usuário.
+        name (str | None): Nome completo do usuário.
         cpf (str): Cadastro de Pessoa Física único (apenas números).
         password (bytes): Hash da senha criptografada.
         active (bool): Status de ativação da conta (default: True).
@@ -28,21 +28,22 @@ class Users(Base):
     """
 
     email: Mapped[str] = mapped_column(String(100), unique=True)
-    full_name: Mapped[str] = mapped_column(String(), nullable=True)
+    name: Mapped[str] = mapped_column(String(), nullable=True)
     cpf: Mapped[str] = mapped_column(String(11), unique=True)
     password: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     reset_password_code: Mapped[bytes] = mapped_column(
         LargeBinary, nullable=True
     )
-    reset_password_expiration: Mapped[datetime] = mapped_column(
-        DateTime, nullable=True
+    reset_password_expiration: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
     # Relationships
-    user_roles: Mapped[list["UserRoles"]] = relationship(
+    user_roles: Mapped[list[UserRoles]] = relationship(
         "UserRoles",
         back_populates="user",
-        lazy="selectin",
+        lazy="noload",
         cascade="all, delete-orphan",
+        passive_deletes=True,
     )

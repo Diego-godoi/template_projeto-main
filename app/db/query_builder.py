@@ -1,11 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import String, Text, func, select
+from sqlalchemy import String, Text, func, inspect, select
 from sqlalchemy.dialects.postgresql import (  # troque pelo dialect do seu banco se necessário
     CHAR,
 )
-from sqlalchemy.orm import load_only
+from sqlalchemy.orm import selectinload
 
 from app.error import CustomException
 
@@ -30,15 +30,16 @@ class QueryBuilder:
     """
     Construtor de queries SQLAlchemy.
 
-    Responsabilidade única: montar o objeto select() com filtros, paginação
-    e projeção de colunas. Nunca executa nada — o Service é dono do session.
+    Responsabilidade única: montar o objeto select() com filtros, paginação,
+    projeção de colunas e carregamento de relacionamentos. Nunca executa
+    nada — o Service é dono do session.
 
     Uso:
         stmt = (
             QueryBuilder(User)
             .filter(attribute="name", value="joão", operator="~")
             .filter_json(json_string={"active": True})
-            .include_only(["id", "name", "email"])
+            .include_only(["addresses"])
             .paginate(skip=0, limit=20)
             .build()
         )
@@ -50,6 +51,20 @@ class QueryBuilder:
     def __init__(self, model):
         self._model = model
         self._query = select(model)
+        self._skip = None
+        self._limit = None
+        self._order_field = None
+        self._order_descending = True
+
+    def order_by(
+        self, field: str | None = None, descending: bool = True
+    ) -> "QueryBuilder":
+        """
+        Define o atributo e direção de ordenação.
+        """
+        self._order_field = field
+        self._order_descending = descending
+        return self
 
     # ------------------------------------------------------------------
     # Filtro simples: attribute + value + operator
@@ -166,24 +181,31 @@ class QueryBuilder:
         return self
 
     # ------------------------------------------------------------------
-    # Projeção de colunas
+    # Carregamento de relacionamentos (eager loading)
     # ------------------------------------------------------------------
 
     def include_only(self, fields: list[str] | None = None) -> "QueryBuilder":
         """
-        Limita as colunas carregadas (load_only).
-        Campos inválidos são silenciosamente ignorados.
+        Carrega relacionamentos do model via eager loading (`selectinload`).
+
+        Cada item de `fields` deve ser o nome de um relacionamento definido
+        no model (ex: "addresses"). Nomes que não correspondem a um
+        relacionamento válido são silenciosamente ignorados — apenas os
+        relacionamentos válidos são carregados.
+
+        Não tem relação com colunas do próprio model — para projetar
+        colunas, use `select_fields`.
         """
         if not fields:
             return self
 
-        columns = [
-            getattr(self._model, col)
-            for col in fields
-            if hasattr(self._model, col)
-        ]
-        if columns:
-            self._query = self._query.options(load_only(*columns))
+        mapper = inspect(self._model)
+
+        for field in fields:
+            if field in mapper.relationships:
+                self._query = self._query.options(
+                    selectinload(getattr(self._model, field))
+                )
 
         return self
 
@@ -197,11 +219,10 @@ class QueryBuilder:
         limit: int | None = None,
     ) -> "QueryBuilder":
         """
-        Aplica offset/limit. Só é aplicado quando ambos são fornecidos.
+        Guarda offset/limit para aplicação posterior no build().
         """
-        if skip is not None and limit is not None:
-            self._query = self._query.offset(skip * limit).limit(limit)
-
+        self._skip = skip
+        self._limit = limit
         return self
 
     # ------------------------------------------------------------------
@@ -211,9 +232,38 @@ class QueryBuilder:
     def build(self):
         """
         Retorna o objeto select() pronto para ser executado pelo Service.
-        Nunca toca no session — execução é responsabilidade de quem chamou.
+        Aplica ordenação e paginação.
         """
-        return self._query
+        query = self._query
+
+        # Aplicar ordenação explícita ou padrão
+        if self._order_field and hasattr(self._model, self._order_field):
+            column = getattr(self._model, self._order_field)
+            query = query.order_by(
+                column.desc() if self._order_descending else column.asc()
+            )
+        elif hasattr(self._model, "created_at"):
+            query = query.order_by(self._model.created_at.desc())
+        elif hasattr(self._model, "id"):
+            query = query.order_by(self._model.id.desc())
+
+        # Aplicar offset/limit
+        if self._skip is not None and self._limit is not None:
+            query = query.offset(self._skip * self._limit).limit(self._limit)
+
+        return query
+
+    def build_count(self):
+        """
+        Retorna a query de contagem (func.count) mantendo os mesmos filtros aplicados,
+        sem offset, limit ou order_by.
+        """
+        count_target = getattr(self._model, "id", None)
+        if count_target is not None:
+            return self._query.with_only_columns(
+                func.count(count_target)
+            ).order_by(None)
+        return self._query.with_only_columns(func.count()).order_by(None)
 
     # ------------------------------------------------------------------
     # Helpers privados
@@ -271,8 +321,16 @@ class QueryBuilder:
         converters = [
             int,
             float,
-            lambda x: datetime.strptime(x, "%Y-%m-%d").date(),
-            lambda x: datetime.strptime(x, "%H:%M:%S").time(),
+            lambda x: (
+                datetime.strptime(x, "%Y-%m-%d")
+                .replace(tzinfo=timezone.utc)
+                .date()
+            ),
+            lambda x: (
+                datetime.strptime(x, "%H:%M:%S")
+                .replace(tzinfo=timezone.utc)
+                .time()
+            ),
         ]
 
         for convert in converters:

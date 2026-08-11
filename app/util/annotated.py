@@ -28,28 +28,24 @@ class QueryParameters:
 
     def __init__(
         self,
-        all_data: bool
-        | None = Query(
+        all_data: bool | None = Query(
             True,
             alias="all",
             description="Indica se todas as correspondências devem ser retornadas (True) "
             "ou apenas a primeira correspondência (False).",
         ),
-        attribute: str
-        | None = Query(
+        attribute: str | None = Query(
             None,
             description='Nome do atributo a ser buscado. Necessário quando "value" é utilizado.',
         ),
-        value: str
-        | None = Query(
+        value: str | None = Query(
             None,
             description='Valor do atributo a ser buscado. Necessário quando "attribute" é utilizado. '
             'Para especificar um intervalo, utilize "|" , onde a primeira posição '
             "representa o limite inferior e a segunda posição representa o limite superior do intervalo. "
             'Exemplo: "10|20" para valores entre 10 e 20.',
         ),
-        json_string: str
-        | None = Query(
+        json_string: str | None = Query(
             None,
             description="Estrutura JSON com um ou mais atributos para serem pesquisados, "
             "respeitando os parâmetros de igualdade ou busca parcial.",
@@ -63,20 +59,17 @@ class QueryParameters:
                 Por exemplo, para inteiros, use "10|20", para floats use "1.5|3.0",
                 para datas use "2023-01-01|2024-01-01" e para horários use "08:00:00|12:00:00".""",
         ),
-        skip: int
-        | None = Query(
+        skip: int | None = Query(
             0,
             description="Se 'skip' e 'limit' forem fornecidos, o 'skip' atuará como um offset para a paginação, "
             "calculando a posição inicial dos itens a serem retornados.",
         ),
-        limit: int
-        | None = Query(
+        limit: int | None = Query(
             100,
             description="Número máximo de itens a serem retornados. "
             "Por exemplo, se limit=10, apenas os primeiros 10 resultados serão retornados. ",
         ),
-        include: str
-        | None = Query(
+        include: str | None = Query(
             None,
             description="Lista de atributos a serem excluídos da consulta.",
         ),

@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app import auth, core, error, schema, util
+from app import auth, core, schema, util
 from app.core.limiter import limiter
 from app.db.session import _db
 from app.services.auth_service import AuthService

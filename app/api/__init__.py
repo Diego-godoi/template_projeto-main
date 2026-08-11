@@ -1,1 +1,1 @@
-from .endpoints import routers
+from .endpoints import routers as routers

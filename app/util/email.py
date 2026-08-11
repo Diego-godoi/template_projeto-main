@@ -2,7 +2,6 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
 from app import core, error
@@ -10,7 +9,7 @@ from app import core, error
 templates = Jinja2Templates(directory=core.settings.TEMPLATES_DIR)
 
 
-__all__ = ["template_string", "send_email"]
+__all__ = ["send_email", "template_string"]
 
 
 def template_string(template_name: str, content: dict) -> str:
@@ -57,5 +56,5 @@ def send_email(email_receiver: str, subject: str, body: str) -> any:
                 email_receiver,
                 em.as_string(),
             )
-    except smtplib.SMTPException as e:
+    except smtplib.SMTPException:
         raise error.CustomException(500, "Falha ao enviar e-mail")

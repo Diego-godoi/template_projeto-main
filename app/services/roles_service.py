@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app import error, models
 from app.db import QueryBuilder, ServiceResponse, _db
@@ -30,13 +30,7 @@ class RolesService:
             dict: Um dicionário contendo a lista de 'items' (Roles) e
                   o 'total' de registros encontrados.
         """
-
-        meta = {
-            "total_items": (
-                await session.execute(select(func.count(models.Roles.id)))
-            ).scalar()
-        }
-        stmt = (
+        builder = (
             QueryBuilder(models.Roles)
             .filter(
                 query_params.attribute,
@@ -45,10 +39,11 @@ class RolesService:
             )
             .filter_json(query_params.json_string, query_params.operator)
             .include_only(query_params.include)
-            .paginate(query_params.skip, query_params.limit)
-            .build()
         )
+        total_items = (await session.execute(builder.build_count())).scalar()
+        stmt = builder.paginate(query_params.skip, query_params.limit).build()
         data = (await session.execute(stmt)).scalars().unique().all()
+        meta = {"total_items": total_items}
         return ServiceResponse(data=data, meta=meta)
 
     @staticmethod
@@ -111,7 +106,12 @@ class RolesService:
         if not role_to_update:
             raise error.CustomException(404, "ID não encontrado")
 
-        update_data = schema.model_dump(exclude_unset=True)
+        if role_to_update.is_system:
+            raise error.CustomException(
+                403, "Não é possível atualizar uma role de sistema"
+            )
+
+        update_data = schema.model_dump(exclude_unset=True, exclude_none=True)
         errors = []
 
         if "name" in update_data:
@@ -159,6 +159,11 @@ class RolesService:
 
         if not role_to_delete:
             raise error.CustomException(404, "ID não encontrado")
+
+        if role_to_delete.is_system:
+            raise error.CustomException(
+                403, "Não é possível deletar uma role de sistema"
+            )
 
         await session.delete(role_to_delete)
         await session.commit()

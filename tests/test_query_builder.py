@@ -8,9 +8,7 @@ Testes de integração (execução real) usam a fixture `async_db_session`.
 """
 
 import pytest
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import load_only
 
 from app import error, models
 from app.db.query_builder import QueryBuilder, ServiceResponse
@@ -222,7 +220,11 @@ class TestQueryBuilderIncludeOnly:
 
     def test_include_only_com_campos_validos_aplica_load_only(self):
         """include_only com campos existentes deve gerar load_only no statement."""
-        stmt = QueryBuilder(models.Users).include_only(["id", "email"]).build()
+        stmt = (
+            QueryBuilder(models.Users)
+            .include_only(["profiles", "user_roles"])
+            .build()
+        )
         # Verifica se a opção load_only está presente nas options do statement
         assert len(stmt._with_options) > 0
 

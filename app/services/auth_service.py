@@ -1,6 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app import core, error, models, schema, util
 from app.db import _db
@@ -29,6 +30,12 @@ class AuthService:
         stmt = (
             select(models.Users)
             .where(models.Users.email == username_normalizado)
+            .options(
+                selectinload(models.Users.user_roles)
+                .selectinload(models.UserRoles.role)
+                .selectinload(models.Roles.role_permissions)
+                .selectinload(models.RolePermissions.permission)
+            )
             .limit(1)
         )
         user: models.Users | None = (
@@ -40,16 +47,27 @@ class AuthService:
         if not user.active:
             raise error.CustomException(401, "Usuario Inativo")
 
-        role_names = [
-            ur.role.name.lower()
-            for ur in (user.user_roles or [])
-            if getattr(ur, "role", None) is not None
-            and getattr(ur.role, "name", None) is not None
-        ]
+        user_permissions = set()
+        for ur in user.user_roles or []:
+            role = getattr(ur, "role", None)
+            if not role:
+                continue
 
-        sub = {"user_id": str(user.id), "scopes": role_names}
+            role_perms = getattr(role, "role_permissions", None) or getattr(
+                role, "permissions", []
+            )
+            for item in role_perms:
+                perm = getattr(item, "permission", item)
+                perm_name = getattr(perm, "name", None)
+                if perm_name:
+                    user_permissions.add(str(perm_name).lower())
 
-        return user, sub
+        payload_data = {
+            "sub": str(user.id),
+            "scopes": list(user_permissions),
+        }
+
+        return user, payload_data
 
     @staticmethod
     async def request_password_reset(
@@ -73,7 +91,7 @@ class AuthService:
         code = util.generate_code()
         body = util.template_string("reset_password.html", {"code": code})
 
-        expiration = datetime.now() + timedelta(
+        expiration = datetime.now(timezone.utc) + timedelta(
             minutes=core.settings.RESET_PASSWORD_TOKEN_EXPIRATION_MINUTES
         )
 
@@ -104,7 +122,7 @@ class AuthService:
         ):
             raise error.CustomException(401, "Email ou código inválido")
 
-        if datetime.now() > user.reset_password_expiration:
+        if datetime.now(timezone.utc) > user.reset_password_expiration:
             raise error.CustomException(401, "Código expirado")
 
         if not await core.verify_password(data.code, user.reset_password_code):

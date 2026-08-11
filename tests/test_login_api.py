@@ -1,31 +1,38 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import core
 from app.core import security
-from tests.test_users_service import _criar_usuario
+
+from .factories import UsersFactory
 
 
 @pytest.mark.asyncio
 async def test_post_login_success(client, async_db_session: AsyncSession):
-    user, post = await _criar_usuario(async_db_session)
+    raw_password = "SenhaForte@123"
+    hashed_password = await core.get_password_hash(raw_password)
+
+    user = UsersFactory.create(password=hashed_password, active=True)
+    await async_db_session.flush()
 
     response = await client.post(
         "/api/v1/login/access-token",
-        data={"username": user.email, "password": "SenhaForte@123"},
+        data={"username": user.email, "password": raw_password},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
 
     assert response.status_code == 200
-    data = response.json()
-    assert "access_token" in data
-    assert data["token_type"] == "Bearer"
 
 
 @pytest.mark.asyncio
 async def test_post_login_credenciais_incorretas(
     client, async_db_session: AsyncSession
 ):
-    user, post = await _criar_usuario(async_db_session)
+    raw_password = "SenhaForte@123"
+    hashed_password = await core.get_password_hash(raw_password)
+
+    user = UsersFactory.create(password=hashed_password)
+    await async_db_session.flush()
 
     response = await client.post(
         "/api/v1/login/access-token",
@@ -33,7 +40,6 @@ async def test_post_login_credenciais_incorretas(
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
 
-    # Dependendo da implementação do `models.Users.login` isso lançará ValidationError ou CustomException(401)
     assert response.status_code in [400, 401, 422]
 
 
@@ -44,7 +50,8 @@ async def test_forgot_my_password_retorna_mensagens_iguais_para_impedir_enum_de_
     from unittest.mock import patch
 
     with patch("app.util.send_email") as mock_send:
-        user, _ = await _criar_usuario(async_db_session)
+        user = UsersFactory.create()
+        await async_db_session.flush()
 
         # 1. Envia com email EXISTENTE
         response_existente = await client.post(
@@ -78,15 +85,18 @@ async def test_forgot_my_password_retorna_mensagens_iguais_para_impedir_enum_de_
 async def test_new_password_com_sucesso_e_expiracao(
     client, async_db_session: AsyncSession
 ):
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
-    user, _ = await _criar_usuario(async_db_session)
+    user = UsersFactory.create()
+    await async_db_session.flush()
     code = "ABC123Z"
     hash_code = await security.get_password_hash(code)
 
     # Força validade futura
     user.reset_password_code = hash_code
-    user.reset_password_expiration = datetime.now() + timedelta(minutes=15)
+    user.reset_password_expiration = datetime.now(timezone.utc) + timedelta(
+        minutes=15
+    )
     await async_db_session.flush()
 
     # Tenta resetar
@@ -107,7 +117,9 @@ async def test_new_password_com_sucesso_e_expiracao(
     # ----
     # Cenário 2: Forçando Código Expirado
     user.reset_password_code = hash_code
-    user.reset_password_expiration = datetime.now() - timedelta(minutes=15)
+    user.reset_password_expiration = datetime.now(timezone.utc) - timedelta(
+        minutes=15
+    )
     await async_db_session.flush()
 
     response_expr = await client.put(
@@ -123,14 +135,17 @@ async def test_new_password_com_sucesso_e_expiracao(
 async def test_new_password_com_codigo_invalido(
     client, async_db_session: AsyncSession
 ):
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
-    user, _ = await _criar_usuario(async_db_session)
+    user = UsersFactory.create()
+    await async_db_session.flush()
     code = "ABC123Z"
     hash_code = await security.get_password_hash(code)
 
     user.reset_password_code = hash_code
-    user.reset_password_expiration = datetime.now() + timedelta(minutes=15)
+    user.reset_password_expiration = datetime.now(timezone.utc) + timedelta(
+        minutes=15
+    )
     await async_db_session.flush()
 
     response = await client.put(

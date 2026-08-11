@@ -1,18 +1,15 @@
 from uuid import UUID
 
 from fastapi import Form
-from pydantic import BaseModel, ConfigDict, Field, model_validator
-
-from app import util
-from app.error import ValidationException
+from pydantic import BaseModel, ConfigDict, Field
 
 from .base_schema import MetaData
 from .types_annotated import Cpf, Email, FullName, Password
 
 __all__ = [
-    "PostUsers",
     "GetUsers",
     "PatchUsers",
+    "PostUsers",
     "ResponseUsers",
 ]
 
@@ -25,96 +22,35 @@ class PostUsers(BaseModel):
         email (Email): Endereço de e-mail único do usuário.
         password (Password): Senha do usuário (será criptografada).
         active (bool | None): Define se o usuário inicia ativo.
-        full_name (str | None): Nome completo do usuário.
+        name (str | None): Nome completo do usuário.
         cpf (str): Cadastro de Pessoa Física único.
     """
 
     # username: str = Field(..., description="Nome de usuário")
-    email: str = Field(..., description="Email do usuário")
-    password: bytes = Field(..., description="Senha do usuário")
+    email: Email = Field(..., description="Email do usuário")
+    password: Password = Field(..., description="Senha do usuário")
     active: bool | None = Field(
         None, description="Indica se o usuário está ativo"
     )
-    full_name: str | None = Field(None, description="Nome completo do usuário")
+    name: FullName | None = Field(None, description="Nome completo do usuário")
     cpf: Cpf = Field(..., description="CPF do usuário")
-
-    @model_validator(mode="before")
-    @classmethod
-    def validators_user(cls, data) -> "PostUsers":
-        errors = []
-
-        try:
-            data["email"] = util.normalize_email(data["email"])
-        except Exception as e:
-            errors.append(
-                {
-                    "loc": ["body", "email"],
-                    "msg": e.detail if hasattr(e, "detail") else str(e),
-                    "type": "value_error",
-                }
-            )
-
-        if "full_name" in data:
-            try:
-                data["full_name"] = util.normalize_capitalize(
-                    data["full_name"]
-                )
-            except Exception as e:
-                errors.append(
-                    {
-                        "loc": ["body", "full_name"],
-                        "msg": e.detail if hasattr(e, "detail") else str(e),
-                        "type": "value_error",
-                    }
-                )
-
-        try:
-            data["password"] = util.normalize_password(data["password"])
-        except Exception as e:
-            errors.append(
-                {
-                    "loc": ["body", "password"],
-                    "msg": e.detail if hasattr(e, "detail") else str(e),
-                    "type": "value_error",
-                }
-            )
-
-        try:
-            data["cpf"] = util.validate_cpf(data["cpf"])
-        except Exception as e:
-            errors.append(
-                {
-                    "loc": ["body", "cpf"],
-                    "msg": e.detail if hasattr(e, "detail") else str(e),
-                    "type": "value_error",
-                }
-            )
-
-        if errors:
-            raise ValidationException(errors)
-
-        return data
 
     @classmethod
     def as_form(
         cls,
-        # username: str = Form(..., description="Nome de usuário"),
         email: Email = Form(..., description="Email do usuário"),
         password: Password = Form(..., description="Senha do usuário"),
-        active: bool = Form(
-            None, description="Indica se o usuário está ativo"
+        active: bool | None = Form(
+            None, description="Indica se o usuário está ativo na plataforma"
         ),
-        full_name: FullName = Form(
-            None, description="Nome completo do usuário"
-        ),
+        name: FullName = Form(..., description="Nome completo do usuário"),
         cpf: Cpf = Form(..., description="CPF do usuário"),
     ):
         return cls(
-            # username=username,
             email=email,
             password=password,
             active=active,
-            full_name=full_name,
+            name=name,
             cpf=cpf,
         )
 
@@ -127,7 +63,7 @@ class GetUsers(BaseModel):
         email (str): Endereço de e-mail do usuário.
         active (bool): Status de ativação da conta.
         id (UUID): Identificador único do usuário.
-        full_name (str | None): Nome completo do usuário.
+        name (str | None): Nome completo do usuário.
         cpf (str): Cadastro de Pessoa Física único.
     """
 
@@ -135,9 +71,7 @@ class GetUsers(BaseModel):
     email: str = Field(..., description="Email do usuário")
     active: bool = Field(..., description="Indica se o usuário está ativo")
     id: UUID = Field(..., description="UUID do usuário")
-    full_name: FullName | None = Field(
-        None, description="Nome completo do usuário"
-    )
+    name: FullName | None = Field(None, description="Nome completo do usuário")
     cpf: str = Field(..., description="CPF do usuário")
 
     model_config = ConfigDict(from_attributes=True)
@@ -151,78 +85,48 @@ class PatchUsers(BaseModel):
         email (str | None): Novo endereço de e-mail.
         password (str | None): Nova senha.
         active (bool | None): Alterar status de ativação.
-        full_name (str | None): Nome completo atualizado.
+        name (str | None): Nome completo atualizado.
         cpf (str | None): CPF atualizado.
     """
 
     # username: str = Field(None, description="Nome de usuário")
-    email: str = Field(None, description="Email do usuário")
-    password: bytes = Field(None, description="Senha do usuário")
+    email: Email = Field(None, description="Email do usuário")
+    password: Password = Field(None, description="Senha do usuário")
     active: bool | None = Field(
         None, description="Indica se o usuário está ativo"
     )
-    full_name: str | None = Field(None, description="Nome completo do usuário")
+    name: FullName | None = Field(None, description="Nome completo do usuário")
     cpf: str | None = Field(None, description="CPF do usuário")
 
-    @model_validator(mode="before")
     @classmethod
-    def validators_user(cls, data) -> "PatchUsers":
-        errors = []
+    def as_form(
+        cls,
+        email: Email | None = Form(None, description="Email do usuário"),
+        password: Password | None = Form(None, description="Senha do usuário"),
+        name: FullName | None = Form(
+            None, description="Nome completo do usuário"
+        ),
+        cpf: str | None = Form(None, description="CPF do usuário"),
+        active: str | None = Form(None, description="Status de ativação"),
+    ):
+        data = {
+            "email": email,
+            "password": password,
+            "name": name,
+            "cpf": cpf,
+            "active": active,
+        }
 
-        if "email" in data:
-            try:
-                data["email"] = util.normalize_email(data["email"])
-            except Exception as e:
-                errors.append(
-                    {
-                        "loc": ["body", "email"],
-                        "msg": e.detail if hasattr(e, "detail") else str(e),
-                        "type": "value_error",
-                    }
-                )
+        if active is not None and active != "":
+            # Converte a string do form ("true", "false", "1", "0") para bool real
+            data["active"] = active.lower() in ("true", "1", "t")
 
-        if "password" in data:
-            try:
-                data["password"] = util.normalize_password(data["password"])
-            except Exception as e:
-                errors.append(
-                    {
-                        "loc": ["body", "password"],
-                        "msg": e.detail if hasattr(e, "detail") else str(e),
-                        "type": "value_error",
-                    }
-                )
+        # Remove campos não enviados, pra simular exclude_unset em multipart
+        clean_data = {
+            k: v for k, v in data.items() if v is not None and v != ""
+        }
 
-        if "full_name" in data:
-            try:
-                data["full_name"] = util.normalize_capitalize(
-                    data["full_name"]
-                )
-            except Exception as e:
-                errors.append(
-                    {
-                        "loc": ["body", "full_name"],
-                        "msg": e.detail if hasattr(e, "detail") else str(e),
-                        "type": "value_error",
-                    }
-                )
-
-        if "cpf" in data:
-            try:
-                data["cpf"] = util.validate_cpf(data["cpf"])
-            except Exception as e:
-                errors.append(
-                    {
-                        "loc": ["body", "cpf"],
-                        "msg": e.detail if hasattr(e, "detail") else str(e),
-                        "type": "value_error",
-                    }
-                )
-
-        if errors:
-            raise ValidationException(errors)
-
-        return data
+        return cls(**clean_data)
 
 
 class ResponseUsers(BaseModel):

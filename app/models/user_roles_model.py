@@ -26,13 +26,22 @@ class UserRoles(Base):
     """
 
     user_id: Mapped[UUID] = mapped_column(
-        SQLUUID(as_uuid=True), ForeignKey("users.id")
+        SQLUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
     )
     role_id: Mapped[UUID] = mapped_column(
-        SQLUUID(as_uuid=True), ForeignKey("roles.id")
+        SQLUUID(as_uuid=True),
+        ForeignKey("roles.id", ondelete="CASCADE"),
+        nullable=False,
     )
 
-    user: Mapped["Users"] = relationship("Users", back_populates="user_roles")
-    role: Mapped["Roles"] = relationship(
-        "Roles", back_populates="user_roles", lazy="selectin"
+    user: Mapped[Users] = relationship(
+        "Users", back_populates="user_roles", passive_deletes=True
+    )
+    role: Mapped[Roles] = relationship(
+        "Roles",
+        back_populates="user_roles",
+        lazy="noload",
+        passive_deletes=True,
     )

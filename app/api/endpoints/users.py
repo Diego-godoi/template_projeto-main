@@ -1,6 +1,13 @@
 # app/routers/users.py
 
-from fastapi import APIRouter, Response, Security, status
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    Response,
+    Security,
+    status,
+)
 from pydantic.types import UUID4
 
 from app import auth, schema
@@ -20,7 +27,7 @@ async def get_users(
     query_parameters: QueryParametersDep,
     session: _db,
     Authentication: dict = Security(
-        auth.get_current_payload, scopes=["user", "admin"]
+        auth.get_current_payload, scopes=["read:users"]
     ),
 ) -> schema.ResponseUsers:
     """Realiza requisiçoes tipo **GET** em **Users** models"""
@@ -33,10 +40,10 @@ async def get_users(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_users(
-    json_data: schema.PostUsers,
-    session: _db,  # <-- Dependência da sessão adicionada
+    session: _db,
+    json_data: schema.PostUsers = Depends(schema.PostUsers.as_form),
 ) -> schema.GetUsers:
-    """Recebe uma requisição tipo `POST` contendo dados referente a **Users**"""
+    """Recebe uma requisição tipo `POST` (multipart/form-data) contendo dados e imagem de **Users**"""
     return await UsersService.create_user(json_data, session)
 
 
@@ -47,9 +54,11 @@ async def create_users(
 )
 async def update_users_by_uuid(
     id: UUID4,
-    json_data: schema.PatchUsers,
     session: _db,
-    Authentication: dict = Security(auth.get_current_payload, scopes=["user"]),
+    json_data=Depends(schema.PatchUsers.as_form),
+    Authentication: dict = Security(
+        auth.get_current_payload, scopes=["update:users"]
+    ),
 ) -> schema.GetUsers:
     """Atualiza um dado na tabela **Users** a partir de um UUID valido"""
     return await UsersService.patch_user(id, json_data, session)
@@ -62,8 +71,10 @@ async def update_users_by_uuid(
 async def delete_users_by_uuid(
     id: UUID4,
     session: _db,
-    Authentication: dict = Security(auth.get_current_payload, scopes=["user"]),
+    Authentication: dict = Security(
+        auth.get_current_payload, scopes=["delete:users"]
+    ),
 ):
-    """Deleta um dado na tabela **Users** a partir do seu UUID"""
+    """Soft delete de um dado na tabela **Users** a partir do seu UUID"""
     await UsersService.delete_user(id, session)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

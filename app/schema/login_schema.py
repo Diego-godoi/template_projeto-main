@@ -1,16 +1,14 @@
 from fastapi import Form
-from pydantic import BaseModel, ConfigDict, Field, model_validator
-
-from app import error
+from pydantic import BaseModel, ConfigDict, Field
 
 from .types_annotated import Email, Password
 from .users_schema import GetUsers
 
 __all__ = [
-    "Login",
-    "LoginResponse",
     "ForgotPassword",
     "ForgotPasswordResponse",
+    "Login",
+    "LoginResponse",
     "ResetPassword",
 ]
 
@@ -24,7 +22,7 @@ class Login(BaseModel):
         password (str): Senha do usuário.
     """
 
-    username: str = Field(..., description="E-mail de acesso do usuário")
+    username: Email = Field(..., description="E-mail de acesso do usuário")
     password: str = Field(..., description="Senha secreta do usuário")
 
     @classmethod
@@ -37,28 +35,6 @@ class Login(BaseModel):
             username=username,
             password=password,
         )
-
-    @model_validator(mode="before")
-    @classmethod
-    def validators_user(self, data):
-        errors = []
-        try:
-            data["username"] = data["username"].lower()
-
-            return data
-        except Exception as e:
-            errors.append(
-                {
-                    "loc": ["body", "username"],
-                    "msg": e.detail if hasattr(e, "detail") else str(e),
-                    "type": "value_error",
-                }
-            )
-
-        if errors:
-            raise error.ValidationException(errors)
-
-        return data
 
 
 class LoginResponse(BaseModel):

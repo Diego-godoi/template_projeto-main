@@ -5,6 +5,7 @@ Testes abrangentes dos utilitários lógicos do sistema (conversões de formatos
 
 import os
 
+import anyio
 import pytest
 from fastapi import UploadFile
 
@@ -112,7 +113,7 @@ async def test_save_file_video_sucesso(monkeypatch, tmp_path):
             f"Arquivo de mock {video_path} não encontrado, pulando teste."
         )
 
-    with open(video_path, "rb") as f:
+    with open(video_path, "rb") as f:  # noqa: ASYNC230
         # UploadFile do FastAPI
         file_mock = UploadFile(filename="video.mp4", file=f)
         try:
@@ -134,7 +135,7 @@ async def test_save_file_formato_invalido(monkeypatch, tmp_path):
     if not os.path.exists(video_path):
         pytest.skip(f"Arquivo de mock {video_path} não encontrado.")
 
-    with open(video_path, "rb") as f:
+    with open(video_path, "rb") as f:  # noqa: ASYNC230
         file_mock = UploadFile(filename="video.mp4", file=f)
         with pytest.raises(CustomException) as exc_info:
             await functions.save_file(
@@ -152,11 +153,10 @@ async def test_save_file_dir_nao_encontrado(monkeypatch):
         "app.util.functions.settings.UPLOAD_DIR", "/dir/inexistente/invalido"
     )
 
-    with pytest.raises(CustomException) as exc_info:
-        file_mock = UploadFile(
-            filename="teste.txt", file=open(os.devnull, "rb")
-        )
-        await functions.save_file(file_mock, "video")
+    async with await anyio.open_file(os.devnull, "rb") as f:
+        file_mock = UploadFile(filename="teste.txt", file=f)
+        with pytest.raises(CustomException) as exc_info:
+            await functions.save_file(file_mock, "video")
 
     assert exc_info.value.status_code == 400
     assert "diretorio não encontrado" in exc_info.value.detail

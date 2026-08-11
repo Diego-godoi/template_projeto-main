@@ -62,7 +62,7 @@ def get_file_by_filename(
         auth.get_current_payload, scopes=["user", "admin"]
     ),
 ):
-    if os.path.exists(f"{settings.UPLOAD_DIR}{str(filename)}"):
+    if os.path.exists(f"{settings.UPLOAD_DIR}{filename!s}"):
         image = os.path.join(settings.UPLOAD_DIR, str(filename))
 
         def iterfile():
@@ -76,6 +76,6 @@ def get_file_by_filename(
     return responses.StreamingResponse(
         iterfile(),
         media_type=magic.from_file(
-            f"{settings.UPLOAD_DIR}{str(filename)}", mime=True
+            f"{settings.UPLOAD_DIR}{filename!s}", mime=True
         ),
     )

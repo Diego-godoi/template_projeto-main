@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Response, Security, status
 from pydantic.types import UUID4
 
-from app import auth, error, schema
+from app import auth, schema
 from app.db.session import _db
 from app.services.roles_service import RolesService
 from app.util import QueryParametersDep
@@ -17,7 +17,9 @@ router = APIRouter(prefix="/roles", tags=["Roles"])
 async def get_roles(
     query_parameters: QueryParametersDep,
     session: _db,
-    Authorization: dict = Security(auth.get_current_payload, scopes=["admin"]),
+    Authorization: dict = Security(
+        auth.get_current_payload, scopes=["read:roles"]
+    ),
 ) -> schema.ResponseRoles:
     """Realiza requisiçoes tipo **GET** em **Roles** models
 
@@ -40,7 +42,7 @@ async def create_roles(
     json_data: schema.PostRoles,
     session: _db,
     Authentication: dict = Security(
-        auth.get_current_payload, scopes=["admin"]
+        auth.get_current_payload, scopes=["write:roles"]
     ),
 ) -> schema.GetRoles:
     """Recebe uma requisição tipo `POST` contendo dados referente a **Roles**
@@ -66,7 +68,7 @@ async def update_roles_by_id(
     json_data: schema.PatchRoles,
     session: _db,
     Authentication: dict = Security(
-        auth.get_current_payload, scopes=["admin"]
+        auth.get_current_payload, scopes=["update:roles"]
     ),
 ) -> schema.GetRoles:
     """Atualiza um dado na tabela **Roles** a partir de um UUID valido
@@ -90,7 +92,7 @@ async def delete_roles_by_id(
     id: UUID4,
     session: _db,
     Authentication: dict = Security(
-        auth.get_current_payload, scopes=["admin"]
+        auth.get_current_payload, scopes=["delete:roles"]
     ),
 ):
     """Deleta um dado na tabela **Roles** a partir do seu UUID

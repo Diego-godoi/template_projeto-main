@@ -18,7 +18,7 @@ async def get_user_roles(
     query_parameters: QueryParametersDep,
     session: _db,
     Authentication: dict = Security(
-        auth.get_current_payload, scopes=["admin"]
+        auth.get_current_payload, scopes=["read:user-roles"]
     ),
 ) -> schema.ResponseUserRoles:
     """Realiza requisiçoes tipo **GET** em **UserRoles** models"""
@@ -34,7 +34,7 @@ async def create_user_roles(
     json_data: schema.PostUserRoles,
     session: _db,
     Authentication: dict = Security(
-        auth.get_current_payload, scopes=["admin"]
+        auth.get_current_payload, scopes=["write:user-roles"]
     ),
 ) -> schema.GetUserRoles:
     """Recebe uma requisição tipo `POST` contendo dados referente a **UserRoles**"""
@@ -51,7 +51,7 @@ async def update_user_roles_by_uuid(
     json_data: schema.PatchUserRoles,
     session: _db,
     Authentication: dict = Security(
-        auth.get_current_payload, scopes=["admin"]
+        auth.get_current_payload, scopes=["update:user-roles"]
     ),
 ) -> schema.GetUserRoles:
     """Atualiza um dado na tabela **UserRoles** a partir de um UUID valido"""
@@ -66,7 +66,7 @@ async def delete_user_roles_by_uuid(
     id: UUID4,
     session: _db,
     Authentication: dict = Security(
-        auth.get_current_payload, scopes=["admin"]
+        auth.get_current_payload, scopes=["delete:user-roles"]
     ),
 ):
     """Deleta um dado na tabela **UserRoles** a partir do seu UUID"""

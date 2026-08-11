@@ -5,25 +5,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import error
 from app.models import UserRoles
-from app.schema import PatchUserRoles, PostUserRoles
 from app.services.user_roles_service import UserRolesService
 from app.util.annotated import QueryParameters
-from tests.test_roles_service import _criar_role
-from tests.test_users_service import _criar_usuario
 
-
-async def _criar_user_role(db_session: AsyncSession) -> UserRoles:
-    """Fixture auxiliar para criar um relacionamento de teste."""
-    user, _ = await _criar_usuario(db_session)
-    role = await _criar_role(db_session, name="user")
-
-    schema = PostUserRoles(user_id=user.id, role_id=role.id)
-    return await UserRolesService.create_user_role(schema, db_session)
+from .factories import (
+    PatchUserRolesFactory,
+    PostUserRolesFactory,
+    RolesFactory,
+    UserRolesFactory,
+)
 
 
 @pytest.mark.asyncio
 async def test_create_user_role_com_sucesso(async_db_session: AsyncSession):
-    user_role = await _criar_user_role(async_db_session)
+    user_role = UserRolesFactory.create()
+    await async_db_session.flush()
 
     assert user_role.id is not None
     assert user_role.user_id is not None
@@ -34,7 +30,7 @@ async def test_create_user_role_com_sucesso(async_db_session: AsyncSession):
 async def test_create_user_role_referencias_invalidas_levanta_erro(
     async_db_session: AsyncSession,
 ):
-    schema = PostUserRoles(user_id=uuid4(), role_id=uuid4())
+    schema = PostUserRolesFactory.build()
 
     with pytest.raises(error.ValidationException) as exc_info:
         await UserRolesService.create_user_role(schema, async_db_session)
@@ -48,14 +44,15 @@ async def test_create_user_role_referencias_invalidas_levanta_erro(
 
 @pytest.mark.asyncio
 async def test_patch_user_role_com_sucesso(async_db_session: AsyncSession):
-    user_role = await _criar_user_role(async_db_session)
+    user_role = UserRolesFactory.create()
+    new_role = RolesFactory.create()
 
-    # Vamos criar outra role para tentar alterar via patch
-    new_role = await _criar_role(
-        async_db_session, name=f"R_Patch_{str(user_role.id)[:10]}"
+    await async_db_session.flush()
+
+    schema_patch = PatchUserRolesFactory.build(
+        role_id=new_role.id, user_id=user_role.user_id
     )
 
-    schema_patch = PatchUserRoles(role_id=new_role.id)
     user_role_atualizada = await UserRolesService.patch_user_role(
         user_role.id, schema_patch, async_db_session
     )
@@ -67,10 +64,10 @@ async def test_patch_user_role_com_sucesso(async_db_session: AsyncSession):
 async def test_patch_user_role_referencias_invalidas_levanta_erro(
     async_db_session: AsyncSession,
 ):
-    user_role = await _criar_user_role(async_db_session)
+    user_role = UserRolesFactory.create()
+    await async_db_session.flush()
 
-    schema_patch = PatchUserRoles(user_id=uuid4(), role_id=uuid4())
-
+    schema_patch = PatchUserRolesFactory.build()
     with pytest.raises(error.ValidationException) as exc_info:
         await UserRolesService.patch_user_role(
             user_role.id, schema_patch, async_db_session
@@ -84,7 +81,7 @@ async def test_patch_user_role_referencias_invalidas_levanta_erro(
 async def test_patch_user_role_id_inexistente_levanta_404(
     async_db_session: AsyncSession,
 ):
-    schema_patch = PatchUserRoles(active=False)
+    schema_patch = PatchUserRolesFactory.build()
 
     with pytest.raises(error.CustomException) as exc_info:
         await UserRolesService.patch_user_role(
@@ -96,7 +93,9 @@ async def test_patch_user_role_id_inexistente_levanta_404(
 
 @pytest.mark.asyncio
 async def test_delete_user_role_com_sucesso(async_db_session: AsyncSession):
-    user_role = await _criar_user_role(async_db_session)
+    user_role = UserRolesFactory.create()
+
+    await async_db_session.flush()
     ur_id = user_role.id
 
     await UserRolesService.delete_user_role(ur_id, async_db_session)
@@ -117,8 +116,8 @@ async def test_delete_user_role_id_inexistente_levanta_404(
 
 @pytest.mark.asyncio
 async def test_get_user_roles_paginado(async_db_session: AsyncSession):
-    await _criar_user_role(async_db_session)
-    await _criar_user_role(async_db_session)
+    UserRolesFactory.build_batch(2)
+    await async_db_session.flush()
 
     qp = QueryParameters(
         all_data=True,

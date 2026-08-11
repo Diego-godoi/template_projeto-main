@@ -3,18 +3,19 @@ from itertools import cycle
 
 from email_validator import validate_email
 
-from app import core, error
+from app import error
 
 __all__ = [
-    "validate_cpf",
     "normalize_capitalize",
+    "normalize_email",
     "normalize_lower",
     "normalize_password",
     "normalize_phone",
+    "normalize_uper",
     "validate_cnpj",
     "validate_cnpj_cpf",
-    "normalize_email",
-    "normalize_uper",
+    "validate_cpf",
+    "validate_permission_name",
 ]
 
 
@@ -154,9 +155,29 @@ def normalize_email(key: str) -> str:
     try:
         valid = validate_email(key, check_deliverability=False)
         key = valid.normalized
-    except Exception:
+    except Exception:  # noqa: BLE001 — barreira final, não deve vazar detalhe interno
         raise error.CustomException(
             status_code=422,
             detail="Formato de email invalido",
         )
     return key.lower()
+
+
+def validate_permission_name(v: str) -> str:
+    """Valida que o nome da permissão segue o formato 'verbo:modulo'.
+
+    Ex: 'read:users', 'write:role-permissions'.
+    """
+    if not v:
+        return v
+
+    v = v.strip().lower()
+    pattern = r"^[a-z0-9_-]+:[a-z0-9_-]+$"
+
+    if not re.match(pattern, v):
+        raise ValueError(
+            "O nome da permissão deve estar no formato 'verbo:modulo' "
+            "(ex: 'read:users' ou 'write:role-permissions')"
+        )
+
+    return v

@@ -112,7 +112,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-app/uploads/*
+app/uploads/
 !app/uploads/__init__.py
 !alembiv/versions/__init__.py
 # Spyder project settings
@@ -154,3 +154,4 @@ trash.md
 .env
 app/util/gen/mermaid/*
 poetry.lock
+.ruff_cache/

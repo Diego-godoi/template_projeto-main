@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import CHAR, Column, DateTime, String, Text, func, select
@@ -29,8 +29,14 @@ class Response:
 class Base(DeclarativeBase):
     __name__: str
     id = Column(UUID(as_uuid=True), primary_key=True, default=generate_uuid)
-    created_at = Column(DateTime, nullable=False, default=datetime.now)
-    updated_at = Column(DateTime, onupdate=datetime.now)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    updated_at = Column(
+        DateTime(timezone=True), onupdate=lambda: datetime.now(timezone.utc)
+    )
 
     @declared_attr
     def __tablename__(cls) -> str:

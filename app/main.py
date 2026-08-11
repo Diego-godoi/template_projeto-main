@@ -11,6 +11,8 @@ from app import api, core
 from app.core.limiter import limiter
 from app.error import CustomException, DatabaseException, ValidationException
 
+logger = logging.getLogger(__name__)
+
 if core.settings.DEBUG:
     app = FastAPI(title=core.settings.PROJECT_NAME)
 else:
@@ -52,7 +54,7 @@ async def database_exception_handler(request: Request, exc: DatabaseException):
     Captura falhas críticas lançadas pela camada do banco de dados e as traduz
     para o requisitante de forma protegida, evitando vazamento arquitetural na stacktrace.
     """
-    logging.error(
+    logger.error(
         f"Erro no BD detectado pela requisição {request.url}: {exc.detail}"
     )
 
@@ -71,7 +73,7 @@ async def custom_exception_handler(request: Request, exc: CustomException):
     Captura exceções personalizadas e as traduz
     para o requisitante de forma protegida, evitando vazamento arquitetural na stacktrace.
     """
-    logging.error(
+    logger.error(
         f"Erro personalizado detectado pela requisição {request.url}: {exc.detail}"
     )
     return JSONResponse(

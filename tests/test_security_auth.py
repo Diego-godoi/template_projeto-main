@@ -1,12 +1,19 @@
 from unittest.mock import patch
 
 import pytest
-from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import error
 from app.auth import auth
 from app.core import security
+
+from .factories import (
+    PermissionsFactory,
+    RolePermissionsFactory,
+    RolesFactory,
+    UserRolesFactory,
+    UsersFactory,
+)
 
 # ==========================================
 # Testes Security (Bcrypt)
@@ -34,7 +41,7 @@ async def test_verify_password_bytes_support():
     plain_password = b"SenhaBytes"
     hashed = await security.get_password_hash(plain_password)
 
-    # Valida match mesmo que o plain_password seja mantido em bytes (a doc do security permite)
+    # Valida match mesmo que o plain_password seja mantido em bytes
     assert await security.verify_password(plain_password, hashed) is True
 
 
@@ -67,11 +74,22 @@ async def test_get_password_hash_lanca_excecao_interna(mock_hashpw):
 
 @pytest.mark.asyncio
 async def test_encode_and_decode_token(async_db_session: AsyncSession):
-    from tests.test_user_roles_service import _criar_user_role
+    # 1. Cria usuário, perfil e permissão granular
+    user = UsersFactory.create(active=True)
+    role = RolesFactory.create(name="user_role")
+    perm = PermissionsFactory.create(name="read:users")
+    await async_db_session.flush()
 
-    # Cria user dummy para validação de integridade do payload
-    user_role = await _criar_user_role(async_db_session)
-    user_id = str(user_role.user_id)
+    # 2. Passa os objetos diretamente para desativar a criação de dummies pelo SubFactory
+    user_role = UserRolesFactory.create(user=user, role=role)
+    role_perm = RolePermissionsFactory.create(role=role, permission=perm)
+    async_db_session.add_all([user_role, role_perm])
+    await async_db_session.flush()
+
+    # 3. Limpa o Identity Map para forçar recarregamento do BD com relacionamentos
+    async_db_session.expunge_all()
+
+    user_id = str(user.id)
     sub = {"user_id": user_id}
 
     # Encode token
@@ -81,22 +99,22 @@ async def test_encode_and_decode_token(async_db_session: AsyncSession):
     # Decode Token
     decoded = await auth.decode_token(token, async_db_session)
 
-    assert "user_id" in decoded
-    assert decoded["user_id"] == user_id
-    assert decoded["scopes"] == ["user"]
+    assert "sub" in decoded
+    assert decoded["sub"] == user_id
+    assert "read:users" in decoded["scopes"]
 
 
 @pytest.mark.asyncio
 async def test_decode_token_expirado(async_db_session: AsyncSession):
-    # Gerando um token que espirou no passado
-    sub = '{"user_id": "fake_id"}'
-    token = auth.encode_token(sub, exp=-15)  # Expirou a 15 minutos
+    # Gerando um token que expirou no passado
+    sub = {"user_id": "fake_id"}
+    token = auth.encode_token(sub, exp=-15)  # Expirou há 15 minutos
 
     with pytest.raises(error.CustomException) as exc:
         await auth.decode_token(token, async_db_session)
 
     assert exc.value.status_code == 401
-    assert "token expirou" in exc.value.detail
+    assert "token expirou" in exc.value.detail.lower()
 
 
 @pytest.mark.asyncio
@@ -107,14 +125,14 @@ async def test_decode_token_invalido(async_db_session: AsyncSession):
         await auth.decode_token(valueless_token, async_db_session)
 
     assert exc.value.status_code == 401
-    assert "token é inválido" in exc.value.detail
+    assert "token é inválido" in exc.value.detail.lower()
 
 
 @pytest.mark.asyncio
 async def test_decode_token_usuario_desativado_ou_nao_encontrado(
     async_db_session: AsyncSession,
 ):
-    # Passa um ID de usuário que não tem cadastro (não gerado nas fixtures local)
+    # Passa um ID de usuário que não tem cadastro
     fake_uuid = "00000000-0000-0000-0000-000000000000"
     sub = {"user_id": fake_uuid}
     token = auth.encode_token(sub, exp=15)
@@ -123,45 +141,51 @@ async def test_decode_token_usuario_desativado_ou_nao_encontrado(
         await auth.decode_token(token, async_db_session)
 
     assert exc.value.status_code == 401
-    assert "usuário não encontrado" in exc.value.detail
+    assert "usuário não encontrado" in exc.value.detail.lower()
 
 
 @pytest.mark.asyncio
 async def test_decode_token_restricao_de_scopes(
     async_db_session: AsyncSession,
 ):
-    from app.models import UserRoles
-    from tests.test_roles_service import _criar_role
-    from tests.test_users_service import _criar_usuario
+    # 1. Cria usuário, perfil e duas permissões
+    user = UsersFactory.create(active=True)
+    role = RolesFactory.create(name="manager")
+    perm_read = PermissionsFactory.create(name="read:users")
+    perm_write = PermissionsFactory.create(name="write:users")
+    await async_db_session.flush()
 
-    user, _ = await _criar_usuario(async_db_session)
-    role_user = await _criar_role(async_db_session, name="user")
-    role_manager = await _criar_role(async_db_session, name="manager")
+    # 2. Associa passando as instâncias completas
+    ur = UserRolesFactory.create(user=user, role=role)
+    rp1 = RolePermissionsFactory.create(role=role, permission=perm_read)
+    rp2 = RolePermissionsFactory.create(role=role, permission=perm_write)
 
-    user.user_roles.append(UserRoles(role_id=str(role_user.id)))
-    user.user_roles.append(UserRoles(role_id=str(role_manager.id)))
-    await async_db_session.commit()
+    async_db_session.add_all([ur, rp1, rp2])
+    await async_db_session.flush()
 
-    # Simula uma nova request limpando o Identity Map
+    # 3. Limpa a sessão para forçar a busca das associações diretamente no banco
     async_db_session.expunge_all()
 
     token = auth.encode_token({"user_id": str(user.id)}, exp=15)
 
-    # Deve permitir user e manager
-    decoded_user = await auth.decode_token(
-        token, async_db_session, scopes=["user"]
+    # Deve permitir 'read:users'
+    decoded_read = await auth.decode_token(
+        token, async_db_session, scopes=["read:users"]
     )
-    assert decoded_user["user_id"] == str(user.id)
-    assert "user" in decoded_user["scopes"]
+    assert decoded_read["sub"] == str(user.id)
+    assert "read:users" in decoded_read["scopes"]
 
-    decoded_manager = await auth.decode_token(
-        token, async_db_session, scopes=["manager"]
+    # Deve permitir 'write:users'
+    decoded_write = await auth.decode_token(
+        token, async_db_session, scopes=["write:users"]
     )
-    assert "manager" in decoded_manager["scopes"]
+    assert "write:users" in decoded_write["scopes"]
 
-    # Não deve permitir admin
+    # Não deve permitir permissão não associada ('delete:users')
     with pytest.raises(error.CustomException) as exc:
-        await auth.decode_token(token, async_db_session, scopes=["admin"])
+        await auth.decode_token(
+            token, async_db_session, scopes=["delete:users"]
+        )
 
-    assert exc.value.status_code == 401
-    assert "não tem permissão" in exc.value.detail
+    assert exc.value.status_code == 403
+    assert "acesso negado" in exc.value.detail.lower()
