@@ -1,17 +1,19 @@
 import csv
+import logging
 import os
+import pathlib
 import random
 import re
 import string
 import uuid
-from io import BytesIO
 
 import anyio
-import magic
 from fastapi import UploadFile
 
 from app import error
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "camel_to_kebab",
@@ -27,6 +29,7 @@ __all__ = [
     "save_file",
     "snake_to_pascal_case",
 ]
+CHUNK_SIZE = 1024 * 1024  # 1MB
 
 
 def pascal_to_camel_case(string):
@@ -67,53 +70,74 @@ def camel_to_snake_case(camel_str):
     return kebab_str
 
 
-async def save_file(file: UploadFile, type: str) -> str:
-    """Salva arquivos
+def _safe_remove(path: str) -> None:
+    """Remove um arquivo se ele existir, sem lançar erro caso contrario."""
+    if os.path.exists(path):
+        os.remove(path)
+
+
+async def save_file(file: UploadFile) -> str:
+    """Salva um UploadFile na subpasta correspondente à sua categoria.
 
     Args:
-        path (str): Diretorio onde sera salvo o arquivo
-        file (UploadFile): fastapi file upload
-        type (str): tipo do file obs: 'video' , 'image' ...
+        file (UploadFile): Arquivo enviado pelo usuário.
 
     Raises:
-        CustomException: 400 Arquivo ou diretorio não encontrado
-        CustomException: 422 Formato de media invalido
+        CustomException: 500 se ocorrer erro durante a escrita.
 
     Returns:
-        str: Retorna o nome do arquivo
+        str: Nome do arquivo salvo.
     """
 
-    path = settings.UPLOAD_DIR
+    directory = settings.UPLOAD_DIR
+    ext = pathlib.Path(file.filename).suffix if file.filename else ""
+    name = f"{uuid.uuid4()}{ext}"
+    final_path = os.path.join(directory, name)
+    tmp_path = f"{final_path}.tmp"
 
-    if not os.path.exists(path):
-        raise error.CustomException(
-            status_code=400,
-            detail="Arquivo ou diretorio não encontrado",
-        )
-    w_file = BytesIO()
-    conteudo = await file.read()
-    w_file.write(conteudo)
-    w_file.seek(0)
-    if str(magic.from_buffer(w_file.read(), True)).split("/")[0] != type:
-        raise error.CustomException(422, "Formato de media invalido")
-    w_file.seek(0)
-    name = str(uuid.uuid4())
-    filename = os.path.join(path, name)
-    async with await anyio.open_file(filename, "wb") as f:
-        await f.write(w_file.getbuffer())
+    try:
+        async with await anyio.open_file(tmp_path, "wb") as f:
+            while chunk := await file.read(CHUNK_SIZE):
+                await f.write(chunk)
+    except Exception:
+        logger.exception("Erro ao escrever arquivo temporário '%s'", tmp_path)
+        await anyio.to_thread.run_sync(_safe_remove, tmp_path)
+        raise error.CustomException(500, "Erro ao salvar o arquivo")
+
+    await anyio.to_thread.run_sync(os.replace, tmp_path, final_path)
     return name
 
 
-def save_csv_file(path: str, header: list, data: list) -> str:
-    name = str(uuid.uuid4())
-    filename = f"{path}{name}"
-    try:
-        with open(filename, "w") as f:
-            writer = csv.writer(f)
-            writer.writerow(header)
-            writer.writerows(data)
-    except FileNotFoundError:
-        raise error.CustomException(404, "Arquivo ou diretorio não encontrado")
+async def save_csv_file(directory: str, header: list, data: list) -> str:
+    """Gera um arquivo CSV em `directory` (uso generico, fora do fluxo de categorias).
+
+    Args:
+        directory (str): Diretorio onde o CSV sera salvo.
+        header (list): Lista com o cabecalho do CSV.
+        data (list): Lista de linhas do CSV.
+
+    Raises:
+        CustomException: 404 se o diretorio nao existir.
+
+    Returns:
+        str: Nome do arquivo CSV gerado.
+    """
+
+    name = f"{uuid.uuid4()}.csv"
+    filename = os.path.join(directory, name)
+
+    def _write():
+        try:
+            with open(filename, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(header)
+                writer.writerows(data)
+        except FileNotFoundError:
+            raise error.CustomException(
+                404, "Arquivo ou diretorio nao encontrado"
+            )
+
+    await anyio.to_thread.run_sync(_write)
     return name
 
 

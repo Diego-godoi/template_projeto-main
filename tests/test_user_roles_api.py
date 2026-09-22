@@ -1,13 +1,10 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import schema
 from app.core.config import settings
 
-from .factories import (
-    PatchUserRolesFactory,
-    RolesFactory,
-    UsersFactory,
-)
+from .factories import RolesFactory, UsersFactory
 
 
 @pytest.mark.asyncio
@@ -21,17 +18,9 @@ async def test_user_roles_crud_fluxo_completo(
 
     await async_db_session.flush()
 
-    auth_as(
-        user1,
-        [
-            "read:user-roles",
-            "write:user-roles",
-            "update:user-roles",
-            "delete:user-roles",
-        ],
-    )
+    auth_as(user1, role="Admin")
 
-    payload = PatchUserRolesFactory.build(
+    payload = schema.PostUserRoles(
         user_id=user1.id, role_id=role1.id
     ).model_dump(mode="json")
 
@@ -52,7 +41,7 @@ async def test_user_roles_crud_fluxo_completo(
     # 3. Patch (Update vínculo mudando a Role)
     role2 = RolesFactory.create(name="ROLE_LINK_2")
     await async_db_session.flush()
-    patch_payload = PatchUserRolesFactory.build(
+    patch_payload = schema.PatchUserRoles(
         role_id=role2.id, user_id=user1.id
     ).model_dump(mode="json")
 

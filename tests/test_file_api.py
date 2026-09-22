@@ -1,19 +1,15 @@
 import os
+import uuid
 
 import anyio
 import pytest
 from fastapi.testclient import TestClient
 
-from app.auth import get_current_payload
 from app.core.config import settings
-from app.main import app
+
+from .factories import UsersFactory
 
 API_PREFIX = settings.API_URL_PREFIX
-
-
-# Mock para by-pass na autenticação (user)
-async def override_user():
-    return {"user_id": "test", "scopes": ["user"]}
 
 
 @pytest.fixture
@@ -31,19 +27,17 @@ def override_upload_dir(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_post_file_success(client: TestClient, override_upload_dir):
-    app.dependency_overrides[get_current_payload] = override_user
-    try:
-        # Simular um arquivo em memória
-        file_content = b"Conteudo teste da API"
-        files = {"file": ("test_api.txt", file_content, "text/plain")}
-        data = {"type_data": "text"}
+async def test_post_file_success(
+    client: TestClient, override_upload_dir, auth_as
+):
+    user = UsersFactory.build()
+    auth_as(user, "user")
+    # Simular um arquivo em memória
+    file_content = b"Conteudo teste da API"
+    files = {"file": ("test_api.txt", file_content, "text/plain")}
+    data = {"type_data": "text"}
 
-        response = await client.post(
-            f"{API_PREFIX}/file/", files=files, data=data
-        )
-    finally:
-        app.dependency_overrides.pop(get_current_payload, None)
+    response = await client.post(f"{API_PREFIX}/file/", files=files, data=data)
 
     assert response.status_code == 200
     filename = response.json()
@@ -58,22 +52,18 @@ async def test_post_file_success(client: TestClient, override_upload_dir):
 
 @pytest.mark.asyncio
 async def test_get_file_by_filename_success(
-    client: TestClient, override_upload_dir
+    client: TestClient, override_upload_dir, auth_as
 ):
-    app.dependency_overrides[get_current_payload] = override_user
-    try:
-        import uuid
+    user = UsersFactory.build()
+    auth_as(user, "user")
+    # Cria arquivo mockado manualmente
+    mock_filename = str(uuid.uuid4())
+    filepath = os.path.join(override_upload_dir, mock_filename)
+    async with await anyio.open_file(filepath, "wb") as f:
+        await f.write(b"Conteudo Mockado GET")
 
-        # Cria arquivo mockado manualmente
-        mock_filename = str(uuid.uuid4())
-        filepath = os.path.join(override_upload_dir, mock_filename)
-        async with await anyio.open_file(filepath, "wb") as f:
-            await f.write(b"Conteudo Mockado GET")
-
-        # Faz o get pelo UUID
-        response = await client.get(f"{API_PREFIX}/file/{mock_filename}")
-    finally:
-        app.dependency_overrides.pop(get_current_payload, None)
+    # Faz o get pelo UUID
+    response = await client.get(f"{API_PREFIX}/file/{mock_filename}")
 
     assert response.status_code == 200
     assert response.content == b"Conteudo Mockado GET"
@@ -81,17 +71,12 @@ async def test_get_file_by_filename_success(
 
 @pytest.mark.asyncio
 async def test_get_file_by_filename_not_found(
-    client: TestClient, override_upload_dir
+    client: TestClient, override_upload_dir, auth_as
 ):
-    app.dependency_overrides[get_current_payload] = override_user
-    try:
-        import uuid
-
-        fail_filename = str(uuid.uuid4())  # ID válido mas arquivo Inexistente
-
-        response = await client.get(f"{API_PREFIX}/file/{fail_filename}")
-    finally:
-        app.dependency_overrides.pop(get_current_payload, None)
+    user = UsersFactory.build()
+    auth_as(user, "user")
+    fail_filename = str(uuid.uuid4())  # ID válido mas arquivo Inexistente
+    response = await client.get(f"{API_PREFIX}/file/{fail_filename}")
 
     assert response.status_code == 404
     assert "Imagem nao encontrada" in response.json()["detail"]

@@ -58,6 +58,9 @@ class Settings(BaseSettings):
         None,
         description="URL de login (opcional; default calculado automaticamente)",
     )
+    REDIS_URL: str | None = Field(
+        None, description="URL do Redis usado pelo rate limiter"
+    )
 
     POSTGRES_USER: str = Field(
         description="Usuário do banco de dados PostgreSQL"

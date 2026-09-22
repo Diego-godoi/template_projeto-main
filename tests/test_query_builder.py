@@ -158,12 +158,12 @@ class TestQueryBuilderFilterJson:
         """filter_json com campo existente deve gerar cláusula WHERE."""
         stmt = (
             QueryBuilder(models.Users)
-            .filter_json({"active": True}, operator="=")
+            .filter_json({"is_deleted": False}, operator="=")
             .build()
         )
         sql = str(stmt.compile(compile_kwargs={"literal_binds": True}))
 
-        assert "active" in sql
+        assert "is_deleted" in sql
 
     def test_filter_json_campo_inexistente_levanta_custom_exception(self):
         """Campo que não existe no modelo deve lançar CustomException 404."""
@@ -253,7 +253,7 @@ class TestQueryBuilderChaining:
         stmt = (
             QueryBuilder(models.Users)
             .filter(attribute="email", value="test@x.com", operator="=")
-            .filter_json({"active": True})
+            .filter_json({"is_deleted": False})
             .include_only(["id", "email"])
             .paginate(skip=0, limit=10)
             .build()
@@ -261,7 +261,7 @@ class TestQueryBuilderChaining:
         sql = str(stmt.compile(compile_kwargs={"literal_binds": True}))
 
         assert "email" in sql
-        assert "active" in sql
+        assert "is_deleted" in sql
         assert "LIMIT" in sql.upper()
 
 
@@ -365,7 +365,7 @@ class TestQueryBuilderFilterJsonIlike:
         """ILIKE em coluna booleana deve lançar CustomException 422."""
         with pytest.raises(error.CustomException) as exc_info:
             QueryBuilder(models.Users).filter_json(
-                {"active": "true"}, operator="~"
+                {"is_deleted": "true"}, operator="~"
             )
 
         assert exc_info.value.status_code == 422

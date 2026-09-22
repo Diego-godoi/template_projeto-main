@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import String, Text, func, inspect, select
+from sqlalchemy import Boolean, Enum, String, Text, func, inspect, select
 from sqlalchemy.dialects.postgresql import (  # troque pelo dialect do seu banco se necessário
     CHAR,
 )
@@ -53,8 +53,24 @@ class QueryBuilder:
         self._query = select(model)
         self._skip = None
         self._limit = None
+        self._all_data = True
         self._order_field = None
         self._order_descending = True
+
+    def set_all_data(self, all_data: bool) -> "QueryBuilder":
+        """Choose between returning all rows or only the first matching row."""
+        self._all_data = all_data
+        return self
+
+    def join(self, target: Any, *props: Any) -> "QueryBuilder":
+        """Add a SQLAlchemy JOIN to the statement."""
+        self._query = self._query.join(target, *props)
+        return self
+
+    def where(self, *criteria: Any) -> "QueryBuilder":
+        """Add SQLAlchemy WHERE criteria to the statement."""
+        self._query = self._query.where(*criteria)
+        return self
 
     def order_by(
         self, field: str | None = None, descending: bool = True
@@ -94,29 +110,32 @@ class QueryBuilder:
 
         self._validate_attribute(attribute)
         column = getattr(self._model, attribute)
+        parsed_value = self._coerce_value(column, value, operator)
 
         match operator:
             case "=":
-                self._query = self._query.filter(column == value)
+                self._query = self._query.filter(column == parsed_value)
 
             case "~":
-                self._validate_ilike_value(value)
-                self._query = self._query.filter(column.ilike(f"%{value}%"))
+                self._validate_ilike_value(parsed_value)
+                self._query = self._query.filter(
+                    column.ilike(f"%{parsed_value}%")
+                )
 
             case "!":
-                self._query = self._query.filter(column != value)
+                self._query = self._query.filter(column != parsed_value)
 
             case "<":
-                self._query = self._query.filter(column < value)
+                self._query = self._query.filter(column < parsed_value)
 
             case ">":
-                self._query = self._query.filter(column > value)
+                self._query = self._query.filter(column > parsed_value)
 
             case "<=":
-                self._query = self._query.filter(column <= value)
+                self._query = self._query.filter(column <= parsed_value)
 
             case ">=":
-                self._query = self._query.filter(column >= value)
+                self._query = self._query.filter(column >= parsed_value)
 
             case "|":
                 lower_value, upper_value = self._parse_range(value)
@@ -163,14 +182,17 @@ class QueryBuilder:
 
         for field, val in json_string.items():
             column = getattr(self._model, field)
+            parsed_val = self._coerce_value(column, val, operator)
 
             match operator:
                 case "=":
-                    self._query = self._query.filter(column == val)
+                    self._query = self._query.filter(column == parsed_val)
 
                 case "~":
                     self._validate_column_is_text(field, column)
-                    self._query = self._query.filter(column.ilike(f"%{val}%"))
+                    self._query = self._query.filter(
+                        column.ilike(f"%{parsed_val}%")
+                    )
 
                 case _:
                     raise CustomException(
@@ -248,7 +270,9 @@ class QueryBuilder:
             query = query.order_by(self._model.id.desc())
 
         # Aplicar offset/limit
-        if self._skip is not None and self._limit is not None:
+        if not self._all_data:
+            query = query.limit(1)
+        elif self._skip is not None and self._limit is not None:
             query = query.offset(self._skip * self._limit).limit(self._limit)
 
         return query
@@ -261,13 +285,53 @@ class QueryBuilder:
         count_target = getattr(self._model, "id", None)
         if count_target is not None:
             return self._query.with_only_columns(
-                func.count(count_target)
+                func.count(func.distinct(count_target))
             ).order_by(None)
         return self._query.with_only_columns(func.count()).order_by(None)
 
     # ------------------------------------------------------------------
     # Helpers privados
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _coerce_value(column, value: Any, operator: str) -> Any:
+        """Convert query input to the Python type expected by a model column."""
+        if value is None or operator == "|":
+            return value
+
+        column_type = getattr(column, "type", None)
+
+        if (
+            isinstance(column_type, Enum)
+            and column_type.enum_class is not None
+        ):
+            try:
+                return column_type.enum_class(value)
+            except ValueError:
+                valid_values = ", ".join(
+                    str(enum_value.value)
+                    for enum_value in column_type.enum_class
+                )
+                raise CustomException(
+                    status_code=422,
+                    detail=(
+                        f"O valor '{value}' não é válido para o Enum. "
+                        f"Valores válidos: {valid_values}."
+                    ),
+                )
+
+        if isinstance(column_type, Boolean):
+            normalized = str(value).strip().lower()
+            if normalized in ("true", "t", "1", "yes"):
+                return True
+            if normalized in ("false", "f", "0", "no"):
+                return False
+            raise CustomException(
+                status_code=422,
+                detail=f"O valor '{value}' não é um booleano válido.",
+            )
+
+        return value
 
     def _validate_attribute(self, attribute: str) -> None:
         if not hasattr(self._model, attribute):

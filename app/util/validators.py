@@ -1,9 +1,12 @@
 import re
 from itertools import cycle
 
+import magic
 from email_validator import validate_email
+from fastapi import UploadFile
 
 from app import error
+from app.schema import FileType
 
 __all__ = [
     "normalize_capitalize",
@@ -15,14 +18,25 @@ __all__ = [
     "validate_cnpj",
     "validate_cnpj_cpf",
     "validate_cpf",
-    "validate_permission_name",
 ]
+
+ALLOWED_MIME_TYPES: dict[FileType, set[str]] = {
+    FileType.Image: {"image/jpeg", "image/png", "image/webp"},
+    FileType.Video: {"video/mp4", "video/webm", "video/quicktime"},
+    FileType.Application: {"application/pdf"},
+    FileType.Text: {"text/plain", "text/csv"},
+}
 
 
 # validador de CPF
-def validate_cpf(key: str) -> str:
+def validate_cpf(key: str) -> str | None:
+    if key is None or str(key).strip().lower() in ("none", "null"):
+        return None
+    if not str(key).strip():
+        return key
+
     # Remover espaços em branco e caracteres não numéricos
-    key = re.sub(r"\D", "", key.strip())
+    key = re.sub(r"\D", "", str(key).strip())
 
     # Verificar comprimento e se todos os caracteres são dígitos
     if len(key) != 11 or not key.isdigit():
@@ -53,11 +67,15 @@ def validate_cpf(key: str) -> str:
     return key
 
 
-def validate_cnpj(cnpj: str) -> str:
+def validate_cnpj(cnpj: str) -> str | None:
     """Valida o CNPJ de acordo com o cálculo dos dígitos verificadores."""
+    if cnpj is None or str(cnpj).strip().lower() in ("none", "null"):
+        return None
+    if not str(cnpj).strip():
+        return cnpj
 
     # Remove qualquer caractere que não seja dígito
-    cnpj = "".join(filter(str.isdigit, cnpj))
+    cnpj = "".join(filter(str.isdigit, str(cnpj)))
 
     if len(cnpj) != 14:
         raise error.CustomException(
@@ -111,16 +129,20 @@ def validate_cnpj_cpf(key: str):
 
 # Aplica Primeria letra maiuscula em uma string
 def normalize_capitalize(key: str):
-    if not key:
+    if key is None or str(key).strip().lower() in ("none", "null"):
+        return None
+    if not str(key).strip():
         return key
-    key = key.lower()
+    key = str(key).lower()
     return " ".join((word.capitalize()) for word in key.split(" "))
 
 
 def normalize_uper(key: str):
-    if not key:
+    if key is None or str(key).strip().lower() in ("none", "null"):
+        return None
+    if not str(key).strip():
         return key
-    return " ".join((word.upper()) for word in key.split(" "))
+    return " ".join((word.upper()) for word in str(key).split(" "))
 
 
 def normalize_password(key: bytes):
@@ -132,15 +154,19 @@ def normalize_password(key: bytes):
 
 
 def normalize_lower(key: str):
-    if not key:
+    if key is None or str(key).strip().lower() in ("none", "null"):
+        return None
+    if not str(key).strip():
         return key
-    return " ".join((word.lower()) for word in key.split(" "))
+    return " ".join((word.lower()) for word in str(key).split(" "))
 
 
 def normalize_phone(key: str):
-    if not key:
+    if key is None or str(key).strip().lower() in ("none", "null"):
+        return None
+    if not str(key).strip():
         return key
-    key = re.sub("[^0-9]+", "", key)
+    key = re.sub("[^0-9]+", "", str(key))
     if len(key) > 13 or len(key) < 11:
         raise error.CustomException(
             status_code=422,
@@ -149,8 +175,10 @@ def normalize_phone(key: str):
     return key
 
 
-def normalize_email(key: str) -> str:
-    if not key:
+def normalize_email(key: str) -> str | None:
+    if key is None or str(key).strip().lower() in ("none", "null"):
+        return None
+    if not str(key).strip():
         return key
     try:
         valid = validate_email(key, check_deliverability=False)
@@ -163,21 +191,36 @@ def normalize_email(key: str) -> str:
     return key.lower()
 
 
-def validate_permission_name(v: str) -> str:
-    """Valida que o nome da permissão segue o formato 'verbo:modulo'.
+async def validate_file_metadata(
+    file: UploadFile, type_data: FileType
+) -> str | None:
+    """Valida o MIME type real de um arquivo sem consumi-lo da memória/disco.
 
-    Ex: 'read:users', 'write:role-permissions'.
+    Lê apenas os primeiros bytes para detectar o tipo MIME real via magic bytes.
+    Ao final, reposiciona o ponteiro de leitura no início (seek(0)) para que o
+    arquivo possa ser lido/salvo posteriormente sem perdas.
+
+    Args:
+        file (UploadFile): Arquivo enviado pelo cliente.
+        type_data (FileType): Tipo esperado (Image, Video, Application).
+
+    Returns:
+        str | None: Retorna a mensagem de erro se inválido, ou None se válido.
     """
-    if not v:
-        return v
+    if not file or not file.filename:
+        return "Arquivo não fornecido"
 
-    v = v.strip().lower()
-    pattern = r"^[a-z0-9_-]+:[a-z0-9_-]+$"
+    allowed = ALLOWED_MIME_TYPES.get(type_data, set())
 
-    if not re.match(pattern, v):
-        raise ValueError(
-            "O nome da permissão deve estar no formato 'verbo:modulo' "
-            "(ex: 'read:users' ou 'write:role-permissions')"
-        )
+    # Lê os primeiros bytes para conferir os "magic bytes" reais do arquivo
+    header = await file.read(2048)
 
-    return v
+    # IMPORTANTE: Reposiciona o ponteiro no início do arquivo para leituras futuras
+    await file.seek(0)
+
+    mime_type = str(magic.from_buffer(header, mime=True))
+
+    if mime_type not in allowed:
+        return f"Formato de mídia inválido ('{mime_type}'). Permitidos: {', '.join(allowed)}"
+
+    return None

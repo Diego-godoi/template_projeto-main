@@ -27,6 +27,8 @@ USER appuser
 
 WORKDIR /app
 
+COPY --chown=appuser:appgroup ./alembic.ini ./alembic.ini
+COPY --chown=appuser:appgroup ./alembic ./alembic
 COPY --chown=appuser:appgroup ./app ./app
 
 EXPOSE 8000

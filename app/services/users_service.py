@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app import core, error, models, schema
 from app.db import QueryBuilder, ServiceResponse, _db
@@ -29,12 +29,7 @@ class UsersService:
             dict: Um dicionário contendo a lista de 'items' (Users) e
                   o 'total' de registros encontrados.
         """
-        meta = {
-            "total_items": (
-                await session.execute(select(func.count(models.Users.id)))
-            ).scalar()
-        }
-        stmt = (
+        builder = (
             QueryBuilder(models.Users)
             .filter(
                 query_params.attribute,
@@ -43,11 +38,11 @@ class UsersService:
             )
             .filter_json(query_params.json_string, query_params.operator)
             .include_only(query_params.include)
-            .paginate(query_params.skip, query_params.limit)
-            .build()
         )
+        total_items = (await session.execute(builder.build_count())).scalar()
+        stmt = builder.paginate(query_params.skip, query_params.limit).build()
         data = (await session.execute(stmt)).scalars().unique().all()
-        return ServiceResponse(data=data, meta=meta)
+        return ServiceResponse(data=data, meta={"total_items": total_items})
 
     @staticmethod
     async def create_user(schema: schema.PostUsers, session: _db):
@@ -64,12 +59,15 @@ class UsersService:
             Users: O objeto Users recém-criado e salvo no banco.
         """
         errors = []
-        stmt = (
-            select(models.Users)
-            .where(models.Users.email == schema.email)
-            .limit(1)
+        stmt = select(
+            select(models.Users.id)
+            .where(
+                models.Users.email == schema.email,
+                models.Users.is_deleted.is_(False),
+            )
+            .exists()
         )
-        if (await session.execute(stmt)).scalars().first():
+        if await session.scalar(stmt):
             errors.append(
                 {
                     "loc": ["body", "email"],
@@ -78,10 +76,15 @@ class UsersService:
                 }
             )
 
-        stmt = (
-            select(models.Users).where(models.Users.cpf == schema.cpf).limit(1)
+        stmt = select(
+            select(models.Users.id)
+            .where(
+                models.Users.cpf == schema.cpf,
+                models.Users.is_deleted.is_(False),
+            )
+            .exists()
         )
-        if (await session.execute(stmt)).scalars().first():
+        if await session.scalar(stmt):
             errors.append(
                 {
                     "loc": ["body", "cpf"],
@@ -126,16 +129,19 @@ class UsersService:
             raise error.CustomException(404, "ID não encontrado")
 
         # Pega apenas os dados que foram enviados
-        update_data = schema.model_dump(exclude_unset=True)
+        update_data = schema.model_dump(exclude_unset=True, exclude_none=True)
         errors = []
 
         if "email" in update_data:
             stmt = (
                 select(models.Users)
-                .where(models.Users.email == update_data["email"])
+                .where(
+                    models.Users.email == update_data["email"],
+                    models.Users.is_deleted == False,
+                )
                 .limit(1)
             )
-            existing_user = (await session.execute(stmt)).scalars().first()
+            existing_user = (await session.execute(stmt)).scalar_one_or_none()
             if existing_user and existing_user.id != id:
                 errors.append(
                     {
@@ -148,10 +154,13 @@ class UsersService:
         if "cpf" in update_data:
             stmt = (
                 select(models.Users)
-                .where(models.Users.cpf == update_data["cpf"])
+                .where(
+                    models.Users.cpf == update_data["cpf"],
+                    models.Users.is_deleted == False,
+                )
                 .limit(1)
             )
-            existing_user = (await session.execute(stmt)).scalars().first()
+            existing_user = (await session.execute(stmt)).scalar_one_or_none()
             if existing_user and existing_user.id != id:
                 errors.append(
                     {
@@ -191,12 +200,18 @@ class UsersService:
         Returns:
             Users: O objeto Users que foi deletado (em estado 'detached').
         """
-        user_to_delete = await session.get(models.Users, id)
+        stmt = (
+            select(models.Users)
+            .where(models.Users.id == id, models.Users.is_deleted == False)
+            .limit(1)
+        )
+        user_to_delete = (await session.execute(stmt)).scalars().first()
 
         if not user_to_delete:
             raise error.CustomException(404, "ID não encontrado")
 
-        await session.delete(user_to_delete)
+        user_to_delete.is_deleted = True
+        session.add(user_to_delete)
         await session.commit()
 
         return user_to_delete

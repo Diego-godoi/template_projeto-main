@@ -23,9 +23,12 @@ AsyncSessionLocal = async_sessionmaker(
 
 
 async def get_db():
+    db = AsyncSessionLocal()
     try:
-        db = AsyncSessionLocal()
         yield db
+    except Exception:
+        await db.rollback()
+        raise  # Repassa a exceção para que o FastAPI retorne o erro 500 ou acione seu Exception Handler
     finally:
         await db.close()
 

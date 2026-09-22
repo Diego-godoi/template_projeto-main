@@ -10,10 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import error, models, schema
 from app.services.users_service import UsersService
+from app.util import functions
 from app.util.annotated import QueryParameters
 from tests.factories import (
-    PatchUsersFactory,
-    PostUsersFactory,
     UsersFactory,
 )
 
@@ -47,15 +46,6 @@ def _assert_validation_field(
         assert field in campos
 
 
-async def _criar_usuario_via_service(
-    session: AsyncSession, **post_overrides
-) -> tuple[models.Users, schema.PostUsers]:
-    """Cria um usuário passando pelo fluxo real de `UsersService.create_user`."""
-    post = PostUsersFactory(**post_overrides)
-    user = await UsersService.create_user(post, session)
-    return user, post
-
-
 # ===========================================================================
 # TESTES DE CRIAÇÃO (CREATE)
 # ===========================================================================
@@ -64,11 +54,18 @@ async def _criar_usuario_via_service(
 @pytest.mark.asyncio
 async def test_cria_usuario_com_sucesso(async_db_session: AsyncSession):
     """Criação com dados válidos retorna objeto Users persistido."""
-    user, post = await _criar_usuario_via_service(async_db_session)
+    payload = schema.PostUsers(
+        name="Usuário de teste",
+        email=f"{uuid.uuid4()}@example.com",
+        cpf=functions.generate_cpf(),
+        password="SenhaForte@123",
+    )
 
-    assert user.id is not None
-    assert user.email == post.email
-    assert user.cpf == post.cpf
+    response = await UsersService.create_user(payload, async_db_session)
+
+    assert response.id is not None
+    assert response.email == payload.email
+    assert response.cpf == payload.cpf
 
 
 @pytest.mark.asyncio
@@ -78,7 +75,12 @@ async def test_cria_usuario_email_duplicado_levanta_erro(
     """Tentar criar usuário com email já cadastrado deve lançar ValidationException."""
     usuario: models.Users = UsersFactory.create()
     await async_db_session.flush()
-    post_dup = PostUsersFactory(email=usuario.email)
+    post_dup = schema.PostUsers(
+        name="Duplicado",
+        email=usuario.email,
+        cpf=functions.generate_cpf(),
+        password="SenhaForte@123",
+    )
 
     with pytest.raises(error.ValidationException) as exc_info:
         await UsersService.create_user(post_dup, async_db_session)
@@ -93,7 +95,12 @@ async def test_cria_usuario_cpf_duplicado_levanta_erro(
     """Tentar criar usuário com CPF já cadastrado deve lançar ValidationException."""
     usuario: models.Users = UsersFactory.create()
     await async_db_session.flush()
-    post_dup = PostUsersFactory(cpf=usuario.cpf)
+    post_dup = schema.PostUsers(
+        name="Duplicado",
+        email=f"{uuid.uuid4()}@example.com",
+        cpf=usuario.cpf,
+        password="SenhaForte@123",
+    )
 
     with pytest.raises(error.ValidationException) as exc_info:
         await UsersService.create_user(post_dup, async_db_session)
@@ -108,7 +115,12 @@ async def test_cria_usuario_email_e_cpf_duplicados_acumula_erros(
     """Email E CPF duplicados devem retornar ambos os erros na mesma exceção."""
     usuario: models.Users = UsersFactory.create()
     await async_db_session.flush()
-    post_dup = PostUsersFactory(email=usuario.email, cpf=usuario.cpf)
+    post_dup = schema.PostUsers(
+        name="Duplicado",
+        email=usuario.email,
+        cpf=usuario.cpf,
+        password="SenhaForte@123",
+    )
 
     with pytest.raises(error.ValidationException) as exc_info:
         await UsersService.create_user(post_dup, async_db_session)
@@ -128,13 +140,12 @@ async def test_patch_usuario_com_sucesso(
     """Atualização parcial persiste as mudanças enviadas."""
     usuario: models.Users = UsersFactory.create()
     await async_db_session.flush()
-    patch_data = PatchUsersFactory()
     atualizado = await UsersService.patch_user(
-        usuario.id, patch_data, async_db_session
+        usuario.id, schema.PatchUsers(name="Nome atualizado"), async_db_session
     )
 
     assert atualizado.id == usuario.id
-    assert atualizado.name == patch_data.name
+    assert atualizado.name == "Nome Atualizado"
 
 
 @pytest.mark.asyncio
@@ -146,7 +157,9 @@ async def test_patch_usuario_id_inexistente_levanta_404(
 
     with pytest.raises(error.CustomException) as exc_info:
         await UsersService.patch_user(
-            id_falso, PatchUsersFactory(), async_db_session
+            id_falso,
+            schema.PatchUsers(name="Nome atualizado"),
+            async_db_session,
         )
 
     assert exc_info.value.status_code == 404
@@ -158,13 +171,15 @@ async def test_patch_usuario_email_duplicado_levanta_erro(
 ):
     """Patch com email já usado por outro usuário lança ValidationException."""
     usuario: models.Users = UsersFactory.create()
-    await async_db_session.flush()
     outro_usuario: models.Users = UsersFactory.create()
     await async_db_session.flush()
-    patch_data = schema.PatchUsers(email=outro_usuario.email)
 
     with pytest.raises(error.ValidationException) as exc_info:
-        await UsersService.patch_user(usuario.id, patch_data, async_db_session)
+        await UsersService.patch_user(
+            usuario.id,
+            schema.PatchUsers(email=outro_usuario.email),
+            async_db_session,
+        )
 
     _assert_validation_field(exc_info.value, "email")
 
@@ -175,13 +190,15 @@ async def test_patch_usuario_cpf_duplicado_levanta_erro(
 ):
     """Patch com CPF já usado por outro usuário lança ValidationException."""
     usuario: models.Users = UsersFactory.create()
-    await async_db_session.flush()
     outro_usuario: models.Users = UsersFactory.create()
     await async_db_session.flush()
-    patch_data = schema.PatchUsers(cpf=outro_usuario.cpf)
 
     with pytest.raises(error.ValidationException) as exc_info:
-        await UsersService.patch_user(usuario.id, patch_data, async_db_session)
+        await UsersService.patch_user(
+            usuario.id,
+            schema.PatchUsers(cpf=outro_usuario.cpf),
+            async_db_session,
+        )
 
     _assert_validation_field(exc_info.value, "cpf")
 
@@ -193,9 +210,11 @@ async def test_patch_usuario_email_proprio_nao_levanta_erro(
     """Patch enviando o próprio email do usuário NÃO deve lançar erro."""
     usuario: models.Users = UsersFactory.create()
     await async_db_session.flush()
-    patch_data = schema.PatchUsers(email=usuario.email)
+
     atualizado = await UsersService.patch_user(
-        usuario.id, patch_data, async_db_session
+        usuario.id,
+        schema.PatchUsers(email=usuario.email),
+        async_db_session,
     )
 
     assert atualizado.email == usuario.email
@@ -208,9 +227,11 @@ async def test_patch_usuario_cpf_proprio_nao_levanta_erro(
     """Patch enviando o próprio CPF do usuário NÃO deve lançar erro."""
     usuario: models.Users = UsersFactory.create()
     await async_db_session.flush()
-    patch_data = schema.PatchUsers(cpf=usuario.cpf)
+
     atualizado = await UsersService.patch_user(
-        usuario.id, patch_data, async_db_session
+        usuario.id,
+        schema.PatchUsers(cpf=usuario.cpf),
+        async_db_session,
     )
 
     assert atualizado.cpf == usuario.cpf
@@ -224,9 +245,11 @@ async def test_patch_usuario_com_senha_nova(
     usuario: models.Users = UsersFactory.create()
     await async_db_session.flush()
     nova_senha = "NovaSenha@999"
-    patch_data = schema.PatchUsers(password=nova_senha)
+
     atualizado = await UsersService.patch_user(
-        usuario.id, patch_data, async_db_session
+        usuario.id,
+        schema.PatchUsers(password=nova_senha),
+        async_db_session,
     )
 
     assert atualizado.password != nova_senha
@@ -248,7 +271,7 @@ async def test_delete_usuario_sucesso(
 
     assert resultado.id == usuario.id
     user_no_banco = await async_db_session.get(models.Users, usuario.id)
-    assert user_no_banco is None
+    assert user_no_banco.is_deleted == True
 
 
 @pytest.mark.asyncio

@@ -12,7 +12,7 @@ async def test_post_login_success(client, async_db_session: AsyncSession):
     raw_password = "SenhaForte@123"
     hashed_password = await core.get_password_hash(raw_password)
 
-    user = UsersFactory.create(password=hashed_password, active=True)
+    user = UsersFactory.create(password=hashed_password, is_deleted=False)
     await async_db_session.flush()
 
     response = await client.post(

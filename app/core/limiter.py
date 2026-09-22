@@ -9,14 +9,46 @@ rate limiting funcione corretamente com múltiplos workers. Em ambiente
 local/dev (sem REDIS_URL definida), cai no storage em memória (padrão).
 """
 
-import os
+from typing import Final
 
+import jwt
+from fastapi import Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-_redis_url = os.getenv("REDIS_URL")
+from app.core.config import settings
+
+
+def get_rate_limit_key(request: Request) -> str:
+    """Use the authenticated subject when available, otherwise the client IP."""
+    remote_address = get_remote_address(request)
+    authorization = request.headers.get("Authorization", "")
+
+    if authorization.lower().startswith("bearer "):
+        try:
+            payload = jwt.decode(
+                authorization[7:].strip(),
+                settings.SECRET_KEY,
+                algorithms=["HS256"],
+                options={"verify_exp": True},
+            )
+            if payload.get("sub"):
+                return f"user:{payload['sub']}"
+        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError, TypeError):
+            pass
+
+    return f"ip:{remote_address}"
+
+
+GLOBAL_LIMIT: Final[str] = "100/minute"
+AUTH_LIMIT: Final[str] = "5/minute"
+PASSWORD_RESET_LIMIT: Final[str] = "3/minute"
+PUBLIC_LIMIT: Final[str] = "30/minute"
+HEAVY_LIMIT: Final[str] = "20/minute"
+UPLOAD_LIMIT: Final[str] = "20/minute"
 
 limiter = Limiter(
-    key_func=get_remote_address,
-    storage_uri=_redis_url if _redis_url else "memory://",
+    key_func=get_rate_limit_key,
+    default_limits=[GLOBAL_LIMIT],
+    storage_uri=settings.REDIS_URL or "memory://",
 )

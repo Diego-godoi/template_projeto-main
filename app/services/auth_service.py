@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
 from app import core, error, models, schema, util
 from app.db import _db
@@ -20,51 +19,38 @@ class AuthService:
         """
         Autentica um usuário e retorna (user, sub) para geração de JWT.
 
-        Obs: `sub` contém scopes, mas a autorização é dinâmica porque o
-        `decode_token()` recalcula scopes com base no BD em toda request.
+        Os papéis do usuário são incluídos no token e recalculados pelo
+        `decode_token()` com base no banco em toda requisição.
         """
         username_normalizado = normalize_lower(username)
         if not username_normalizado:
             raise error.CustomException(400, "Email ou Senha invalidos")
 
         stmt = (
-            select(models.Users)
-            .where(models.Users.email == username_normalizado)
-            .options(
-                selectinload(models.Users.user_roles)
-                .selectinload(models.UserRoles.role)
-                .selectinload(models.Roles.role_permissions)
-                .selectinload(models.RolePermissions.permission)
+            select(models.Users, models.Roles.name)
+            .outerjoin(
+                models.UserRoles,
+                models.UserRoles.user_id == models.Users.id,
             )
-            .limit(1)
+            .outerjoin(
+                models.Roles,
+                models.Roles.id == models.UserRoles.role_id,
+            )
+            .where(
+                models.Users.email == username_normalizado,
+                models.Users.is_deleted == False,
+            )
         )
-        user: models.Users | None = (
-            (await session.execute(stmt)).scalars().first()
-        )
+        rows = (await session.execute(stmt)).all()
+        user: models.Users | None = rows[0][0] if rows else None
 
         if not user or not await core.verify_password(password, user.password):
             raise error.CustomException(400, "Email ou Senha invalidos")
-        if not user.active:
-            raise error.CustomException(401, "Usuario Inativo")
 
-        user_permissions = set()
-        for ur in user.user_roles or []:
-            role = getattr(ur, "role", None)
-            if not role:
-                continue
-
-            role_perms = getattr(role, "role_permissions", None) or getattr(
-                role, "permissions", []
-            )
-            for item in role_perms:
-                perm = getattr(item, "permission", item)
-                perm_name = getattr(perm, "name", None)
-                if perm_name:
-                    user_permissions.add(str(perm_name).lower())
-
+        roles = sorted({role.lower() for _, role in rows if role})
         payload_data = {
             "sub": str(user.id),
-            "scopes": list(user_permissions),
+            "roles": roles,
         }
 
         return user, payload_data
@@ -83,7 +69,13 @@ class AuthService:
             "Se o e-mail estiver cadastrado, as instruções serão enviadas."
         )
 
-        stmt = select(models.Users).where(models.Users.email == email).limit(1)
+        stmt = (
+            select(models.Users)
+            .where(
+                models.Users.email == email, models.Users.is_deleted == False
+            )
+            .limit(1)
+        )
         user = (await session.execute(stmt)).scalars().first()
         if not user:
             return message, None
@@ -110,7 +102,10 @@ class AuthService:
         data.code = util.normalize_uper(data.code)
         stmt = (
             select(models.Users)
-            .where(models.Users.email == data.email)
+            .where(
+                models.Users.email == data.email,
+                models.Users.is_deleted == False,
+            )
             .limit(1)
         )
         user = (await session.execute(stmt)).scalars().first()

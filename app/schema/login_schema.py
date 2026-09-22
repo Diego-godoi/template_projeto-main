@@ -1,4 +1,3 @@
-from fastapi import Form
 from pydantic import BaseModel, ConfigDict, Field
 
 from .types_annotated import Email, Password
@@ -24,17 +23,6 @@ class Login(BaseModel):
 
     username: Email = Field(..., description="E-mail de acesso do usuário")
     password: str = Field(..., description="Senha secreta do usuário")
-
-    @classmethod
-    def as_form(
-        cls,
-        username: Email = Form(..., description="email Documentar"),
-        password: str = Form(..., description="password Documentar"),
-    ):
-        return cls(
-            username=username,
-            password=password,
-        )
 
 
 class LoginResponse(BaseModel):

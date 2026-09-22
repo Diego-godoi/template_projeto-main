@@ -17,13 +17,12 @@ import asyncio
 from urllib.parse import quote_plus
 
 import pytest
-from fastapi.security import SecurityScopes
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     create_async_engine,
 )
 
-from app import error, models
+from app import models
 from app.auth import get_current_payload
 from app.core.config import settings
 from app.db.base_class import Base
@@ -140,23 +139,21 @@ async def client(async_db_session: AsyncSession):
 
 @pytest.fixture
 def auth_as():
-    """Autentica o `client` como um usuário específico para o teste."""
+    """Autentica o client com um papel RBAC clássico.
 
-    def _apply(user: models.Users, scopes: list[str] | None = None):
-        user_scopes = scopes or ["user"]
+    A fixture deliberadamente ignora os scopes declarados nas rotas: durante
+    a migração para RBAC, os testes devem expressar autorização por papel,
+    não por uma lista de permissões granulares.
+    """
 
-        async def override_payload(security_scopes: SecurityScopes):
-            required_scopes = security_scopes.scopes
+    def _apply(
+        user: models.Users,
+        role: str | models.StandardRoles = models.StandardRoles.USER,
+    ):
+        role_name = getattr(role, "value", role)
 
-            if required_scopes and not any(
-                scope in user_scopes for scope in required_scopes
-            ):
-                raise error.CustomException(
-                    status_code=401,
-                    detail="Desculpe, você não tem permissão.",
-                )
-
-            return {"sub": str(user.id), "scopes": user_scopes}
+        async def override_payload():
+            return {"sub": str(user.id), "roles": [role_name]}
 
         app.dependency_overrides[get_current_payload] = override_payload
         return user

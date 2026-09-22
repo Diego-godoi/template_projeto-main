@@ -3,17 +3,12 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import error
+from app import error, schema
 from app.models import UserRoles
 from app.services.user_roles_service import UserRolesService
 from app.util.annotated import QueryParameters
 
-from .factories import (
-    PatchUserRolesFactory,
-    PostUserRolesFactory,
-    RolesFactory,
-    UserRolesFactory,
-)
+from .factories import RolesFactory, UserRolesFactory
 
 
 @pytest.mark.asyncio
@@ -30,10 +25,10 @@ async def test_create_user_role_com_sucesso(async_db_session: AsyncSession):
 async def test_create_user_role_referencias_invalidas_levanta_erro(
     async_db_session: AsyncSession,
 ):
-    schema = PostUserRolesFactory.build()
+    payload = schema.PostUserRoles(user_id=uuid4(), role_id=uuid4())
 
     with pytest.raises(error.ValidationException) as exc_info:
-        await UserRolesService.create_user_role(schema, async_db_session)
+        await UserRolesService.create_user_role(payload, async_db_session)
 
     errors = exc_info.value.detail
     # Deve estourar duas falhas: user_id e role_id não encontrados
@@ -49,7 +44,7 @@ async def test_patch_user_role_com_sucesso(async_db_session: AsyncSession):
 
     await async_db_session.flush()
 
-    schema_patch = PatchUserRolesFactory.build(
+    schema_patch = schema.PatchUserRoles(
         role_id=new_role.id, user_id=user_role.user_id
     )
 
@@ -67,7 +62,7 @@ async def test_patch_user_role_referencias_invalidas_levanta_erro(
     user_role = UserRolesFactory.create()
     await async_db_session.flush()
 
-    schema_patch = PatchUserRolesFactory.build()
+    schema_patch = schema.PatchUserRoles(user_id=uuid4(), role_id=uuid4())
     with pytest.raises(error.ValidationException) as exc_info:
         await UserRolesService.patch_user_role(
             user_role.id, schema_patch, async_db_session
@@ -81,7 +76,7 @@ async def test_patch_user_role_referencias_invalidas_levanta_erro(
 async def test_patch_user_role_id_inexistente_levanta_404(
     async_db_session: AsyncSession,
 ):
-    schema_patch = PatchUserRolesFactory.build()
+    schema_patch = schema.PatchUserRoles(user_id=uuid4(), role_id=uuid4())
 
     with pytest.raises(error.CustomException) as exc_info:
         await UserRolesService.patch_user_role(

@@ -27,7 +27,7 @@ async def test_login_com_sucesso(async_db_session: AsyncSession):
     raw_password = "SenhaForte@123"
     hashed_password = await core.get_password_hash(raw_password)
 
-    user = UsersFactory.create(password=hashed_password, active=True)
+    user = UsersFactory.create(password=hashed_password, is_deleted=False)
     await async_db_session.flush()
 
     result_user, payload = await AuthService.login(
@@ -36,7 +36,7 @@ async def test_login_com_sucesso(async_db_session: AsyncSession):
 
     assert result_user.id == user.id
     assert payload["sub"] == str(user.id)
-    assert isinstance(payload["scopes"], list)
+    assert isinstance(payload["roles"], list)
 
 
 @pytest.mark.asyncio
@@ -77,24 +77,6 @@ async def test_login_senha_incorreta_levanta_400(
         await AuthService.login(user.email, "SenhaErrada999", async_db_session)
 
     assert exc_info.value.status_code == 400
-
-
-@pytest.mark.asyncio
-async def test_login_usuario_inativo_levanta_401(
-    async_db_session: AsyncSession,
-):
-    """Login de usuário inativo deve lançar CustomException 401."""
-    raw_password = "SenhaForte@123"
-    hashed_password = await core.get_password_hash(raw_password)
-
-    user = UsersFactory.create(active=False, password=hashed_password)
-    await async_db_session.flush()
-
-    with pytest.raises(error.CustomException) as exc_info:
-        await AuthService.login(user.email, raw_password, async_db_session)
-
-    assert exc_info.value.status_code == 401
-    assert "Inativo" in exc_info.value.detail
 
 
 # ---------------------------------------------------------------------------

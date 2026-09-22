@@ -2,15 +2,10 @@
 
 import pytest
 
-from app import models
+from app import models, schema
 from app.core.config import settings
 from app.util import functions
-from tests.factories import (
-    PatchUsersFactory,
-    PostUsersFactory,
-    RolesFactory,
-    UsersFactory,
-)
+from tests.factories import RolesFactory, UsersFactory
 
 API_PREFIX = settings.API_URL_PREFIX
 
@@ -25,7 +20,12 @@ async def test_post_usuario_retorna_201(client):
     RolesFactory.create(name=models.enums.StandardRoles.USER.value)
 
     cpf_valido = functions.generate_cpf()
-    payload = PostUsersFactory.build(cpf=cpf_valido)
+    payload = schema.PostUsers(
+        name="Usuário de teste",
+        email="novo.usuario@example.com",
+        cpf=cpf_valido,
+        password="SenhaForte@123",
+    )
 
     response = await client.post(
         f"{API_PREFIX}/users/",
@@ -39,12 +39,10 @@ async def test_post_usuario_retorna_201(client):
 async def test_patch_usuario_retorna_200(client, auth_as):
     """Testa atualização parcial do usuário via PATCH."""
     user = UsersFactory.create()
-    auth_as(user, ["update:users"])
+    auth_as(user, role="Admin")
 
-    payload = PatchUsersFactory.build()
-    data = payload.model_dump(
-        mode="json", exclude_unset=True, exclude_none=True
-    )
+    payload = schema.PatchUsers(name="Nome atualizado")
+    data = payload.model_dump(mode="json")
 
     response = await client.patch(f"{API_PREFIX}/users/{user.id}", data=data)
 
@@ -55,7 +53,7 @@ async def test_patch_usuario_retorna_200(client, auth_as):
 async def test_delete_usuario_retorna_204(client, auth_as):
     """Testa remoção (soft delete) do usuário via DELETE."""
     user = UsersFactory.create()
-    auth_as(user, ["delete:users"])
+    auth_as(user, role="Admin")
 
     response = await client.delete(f"{API_PREFIX}/users/{user.id}")
     assert response.status_code == 204

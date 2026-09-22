@@ -7,13 +7,7 @@ from app import error
 from app.auth import auth
 from app.core import security
 
-from .factories import (
-    PermissionsFactory,
-    RolePermissionsFactory,
-    RolesFactory,
-    UserRolesFactory,
-    UsersFactory,
-)
+from .factories import RolesFactory, UserRolesFactory, UsersFactory
 
 # ==========================================
 # Testes Security (Bcrypt)
@@ -74,34 +68,19 @@ async def test_get_password_hash_lanca_excecao_interna(mock_hashpw):
 
 @pytest.mark.asyncio
 async def test_encode_and_decode_token(async_db_session: AsyncSession):
-    # 1. Cria usuário, perfil e permissão granular
-    user = UsersFactory.create(active=True)
-    role = RolesFactory.create(name="user_role")
-    perm = PermissionsFactory.create(name="read:users")
+    user = UsersFactory.create(is_deleted=False)
+    role = RolesFactory.create(name="User")
+    UserRolesFactory.create(user=user, role=role)
     await async_db_session.flush()
-
-    # 2. Passa os objetos diretamente para desativar a criação de dummies pelo SubFactory
-    user_role = UserRolesFactory.create(user=user, role=role)
-    role_perm = RolePermissionsFactory.create(role=role, permission=perm)
-    async_db_session.add_all([user_role, role_perm])
-    await async_db_session.flush()
-
-    # 3. Limpa o Identity Map para forçar recarregamento do BD com relacionamentos
-    async_db_session.expunge_all()
 
     user_id = str(user.id)
-    sub = {"user_id": user_id}
-
-    # Encode token
-    token = auth.encode_token(sub, exp=15)
+    token = auth.encode_token({"sub": user_id, "roles": ["User"]}, exp=15)
     assert isinstance(token, str)
 
-    # Decode Token
     decoded = await auth.decode_token(token, async_db_session)
 
-    assert "sub" in decoded
     assert decoded["sub"] == user_id
-    assert "read:users" in decoded["scopes"]
+    assert decoded["roles"] == ["user"]
 
 
 @pytest.mark.asyncio
@@ -142,50 +121,3 @@ async def test_decode_token_usuario_desativado_ou_nao_encontrado(
 
     assert exc.value.status_code == 401
     assert "usuário não encontrado" in exc.value.detail.lower()
-
-
-@pytest.mark.asyncio
-async def test_decode_token_restricao_de_scopes(
-    async_db_session: AsyncSession,
-):
-    # 1. Cria usuário, perfil e duas permissões
-    user = UsersFactory.create(active=True)
-    role = RolesFactory.create(name="manager")
-    perm_read = PermissionsFactory.create(name="read:users")
-    perm_write = PermissionsFactory.create(name="write:users")
-    await async_db_session.flush()
-
-    # 2. Associa passando as instâncias completas
-    ur = UserRolesFactory.create(user=user, role=role)
-    rp1 = RolePermissionsFactory.create(role=role, permission=perm_read)
-    rp2 = RolePermissionsFactory.create(role=role, permission=perm_write)
-
-    async_db_session.add_all([ur, rp1, rp2])
-    await async_db_session.flush()
-
-    # 3. Limpa a sessão para forçar a busca das associações diretamente no banco
-    async_db_session.expunge_all()
-
-    token = auth.encode_token({"user_id": str(user.id)}, exp=15)
-
-    # Deve permitir 'read:users'
-    decoded_read = await auth.decode_token(
-        token, async_db_session, scopes=["read:users"]
-    )
-    assert decoded_read["sub"] == str(user.id)
-    assert "read:users" in decoded_read["scopes"]
-
-    # Deve permitir 'write:users'
-    decoded_write = await auth.decode_token(
-        token, async_db_session, scopes=["write:users"]
-    )
-    assert "write:users" in decoded_write["scopes"]
-
-    # Não deve permitir permissão não associada ('delete:users')
-    with pytest.raises(error.CustomException) as exc:
-        await auth.decode_token(
-            token, async_db_session, scopes=["delete:users"]
-        )
-
-    assert exc.value.status_code == 403
-    assert "acesso negado" in exc.value.detail.lower()

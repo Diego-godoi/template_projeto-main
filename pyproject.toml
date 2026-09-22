@@ -87,7 +87,6 @@ exclude = [
     "alembic",
     ".agents",
     "AI_specs",
-    "app/db/base_class.py",
 ]
 
 [tool.ruff.lint]

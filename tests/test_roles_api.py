@@ -1,10 +1,10 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import util
+from app import schema, util
 from app.core.config import settings
 
-from .factories import PatchRolesFactory, PostRolesFactory, UsersFactory
+from .factories import UsersFactory
 
 API_PREFIX = settings.API_URL_PREFIX
 
@@ -16,12 +16,12 @@ async def test_roles_crud_fluxo_completo(
     user = UsersFactory.create()
     await async_db_session.flush()
 
-    auth_as(
-        user, ["read:roles", "write:roles", "update:roles", "delete:roles"]
-    )
+    auth_as(user, role="Admin")
     # 1. Post (Create)
 
-    payload = PostRolesFactory.build().model_dump(mode="json")
+    payload = schema.PostRoles(
+        name="Role API", description="Role criada no teste"
+    ).model_dump(mode="json")
 
     resp_post = await client.post(f"{API_PREFIX}/roles/", json=payload)
     assert resp_post.status_code == 201
@@ -37,7 +37,9 @@ async def test_roles_crud_fluxo_completo(
     assert any(r["id"] == role_id for r in get_data["data"])
 
     # 3. Patch (Update)
-    patch_payload = PatchRolesFactory.build().model_dump(mode="json")
+    patch_payload = schema.PatchRoles(
+        name="Role atualizada", description="Descrição atualizada"
+    ).model_dump(mode="json")
     resp_patch = await client.patch(
         f"{API_PREFIX}/roles/{role_id}", json=patch_payload
     )

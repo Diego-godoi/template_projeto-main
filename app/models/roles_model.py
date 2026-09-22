@@ -8,7 +8,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
 
 if TYPE_CHECKING:
-    from .role_permissions_model import RolePermissions
     from .user_roles_model import UserRoles
 
 
@@ -21,7 +20,6 @@ class Roles(Base):
         description (str | None): Descrição detalhada das responsabilidades do papel.
         is_system (bool): Indica se é um papel do sistema (imutável).
         user_roles (list[UserRoles]): Lista de associações com usuários.
-        role_permissions (list[RolePermissions]): Lista de permissões vinculadas.
     """
 
     name: Mapped[str] = mapped_column(String(45), nullable=False, unique=True)
@@ -33,13 +31,6 @@ class Roles(Base):
     user_roles: Mapped[list[UserRoles]] = relationship(
         "UserRoles",
         back_populates="role",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-    )
-    role_permissions: Mapped[list[RolePermissions]] = relationship(
-        "RolePermissions",
-        back_populates="role",
-        lazy="noload",
         cascade="all, delete-orphan",
         passive_deletes=True,
     )

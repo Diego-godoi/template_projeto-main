@@ -3,17 +3,19 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import error
+from app import error, schema
 from app.models import Roles
 from app.services.roles_service import RolesService
 from app.util.annotated import QueryParameters
 
-from .factories import PatchRolesFactory, PostRolesFactory, RolesFactory
+from .factories import RolesFactory
 
 
 @pytest.mark.asyncio
 async def test_create_role_com_sucesso(async_db_session: AsyncSession):
-    role_payload = PostRolesFactory.build(name="Vendedor")
+    role_payload = schema.PostRoles(
+        name="Vendedor", description="Descrição do vendedor"
+    )
     result = await RolesService.create_role(role_payload, async_db_session)
     assert result.id is not None
     assert result.name == "Vendedor"
@@ -26,7 +28,9 @@ async def test_create_role_nome_duplicado_levanta_erro(
     RolesFactory.create(name="Gerente")
     await async_db_session.flush()
 
-    schema_duplicado = PostRolesFactory.build(name="Gerente")
+    schema_duplicado = schema.PostRoles(
+        name="Gerente", description="Descrição"
+    )
     with pytest.raises(error.ValidationException) as exc_info:
         await RolesService.create_role(schema_duplicado, async_db_session)
 
@@ -40,7 +44,7 @@ async def test_patch_role_com_sucesso(async_db_session: AsyncSession):
     role = RolesFactory.create(name="Supervisor")
     await async_db_session.flush()
 
-    schema_patch = PatchRolesFactory.build(name=None, description="Nova desc")
+    schema_patch = schema.PatchRoles(name=None, description="Nova desc")
     role_atualizada = await RolesService.patch_role(
         role.id, schema_patch, async_db_session
     )
@@ -57,7 +61,7 @@ async def test_patch_role_nome_duplicado_levanta_erro(
     role2 = RolesFactory.create(name="Role2")
     await async_db_session.flush()
 
-    schema_patch = PatchRolesFactory.build(name="Role1")
+    schema_patch = schema.PatchRoles(name="Role1")
     with pytest.raises(error.ValidationException) as exc_info:
         await RolesService.patch_role(role2.id, schema_patch, async_db_session)
 
@@ -69,7 +73,7 @@ async def test_patch_role_nome_duplicado_levanta_erro(
 async def test_patch_role_id_inexistente_levanta_404(
     async_db_session: AsyncSession,
 ):
-    schema_patch = PatchRolesFactory.build(name="RoleFantasma")
+    schema_patch = schema.PatchRoles(name="RoleFantasma")
     with pytest.raises(error.CustomException) as exc_info:
         await RolesService.patch_role(uuid4(), schema_patch, async_db_session)
 

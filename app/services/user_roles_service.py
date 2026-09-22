@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app import error, models
 from app.db import QueryBuilder, ServiceResponse, _db
@@ -31,12 +31,7 @@ class UserRolesService:
                   o 'total' de registros encontrados.
         """
 
-        meta = {
-            "total_items": (
-                await session.execute(select(func.count(models.UserRoles.id)))
-            ).scalar()
-        }
-        stmt = (
+        builder = (
             QueryBuilder(models.UserRoles)
             .filter(
                 query_params.attribute,
@@ -45,11 +40,11 @@ class UserRolesService:
             )
             .filter_json(query_params.json_string, query_params.operator)
             .include_only(query_params.include)
-            .paginate(query_params.skip, query_params.limit)
-            .build()
         )
+        total_items = (await session.execute(builder.build_count())).scalar()
+        stmt = builder.paginate(query_params.skip, query_params.limit).build()
         data = (await session.execute(stmt)).scalars().unique().all()
-        return ServiceResponse(data=data, meta=meta)
+        return ServiceResponse(data=data, meta={"total_items": total_items})
 
     @staticmethod
     async def create_user_role(schema: PostUserRoles, session: _db):
@@ -67,7 +62,15 @@ class UserRolesService:
         """
         errors = []
 
-        if not await session.get(models.Users, schema.user_id):
+        stmt = select(
+            select(models.Users.id)
+            .where(
+                models.Users.id == schema.user_id,
+                models.Users.is_deleted.is_(False),
+            )
+            .exists()
+        )
+        if not await session.scalar(stmt):
             errors.append(
                 {
                     "loc": ["body", "user_id"],
@@ -118,12 +121,18 @@ class UserRolesService:
         if not item_to_update:
             raise error.CustomException(404, "ID não encontrado")
 
-        update_data = schema.model_dump(exclude_unset=True)
+        update_data = schema.model_dump(exclude_unset=True, exclude_none=True)
         errors = []
 
-        if "user_id" in update_data and not await session.get(
-            models.Users, update_data["user_id"]
-        ):
+        stmt = select(
+            select(models.Users.id)
+            .where(
+                models.Users.id == update_data["user_id"],
+                models.Users.is_deleted.is_(False),
+            )
+            .exists()
+        )
+        if "user_id" in update_data and not await session.scalar(stmt):
             errors.append(
                 {
                     "loc": ["body", "user_id"],

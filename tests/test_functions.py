@@ -117,7 +117,7 @@ async def test_save_file_video_sucesso(monkeypatch, tmp_path):
         # UploadFile do FastAPI
         file_mock = UploadFile(filename="video.mp4", file=f)
         try:
-            saved_name = await functions.save_file(file_mock, "video")
+            saved_name = await functions.save_file(file_mock)
             assert saved_name is not None
             assert os.path.exists(os.path.join(str(tmp_path), saved_name))
         finally:
@@ -137,13 +137,12 @@ async def test_save_file_formato_invalido(monkeypatch, tmp_path):
 
     with open(video_path, "rb") as f:  # noqa: ASYNC230
         file_mock = UploadFile(filename="video.mp4", file=f)
-        with pytest.raises(CustomException) as exc_info:
-            await functions.save_file(
-                file_mock, "image"
-            )  # magic.from_buffer detectará "video"
+        from app.schema import FileType
+        from app.util.validators import validate_file_metadata
 
-        assert exc_info.value.status_code == 422
-        assert "Formato de media invalido" in exc_info.value.detail
+        error_msg = await validate_file_metadata(file_mock, FileType.Image)
+        assert error_msg is not None
+        assert "Formato de mídia inválido" in error_msg
 
 
 @pytest.mark.asyncio
@@ -156,10 +155,10 @@ async def test_save_file_dir_nao_encontrado(monkeypatch):
     async with await anyio.open_file(os.devnull, "rb") as f:
         file_mock = UploadFile(filename="teste.txt", file=f)
         with pytest.raises(CustomException) as exc_info:
-            await functions.save_file(file_mock, "video")
+            await functions.save_file(file_mock)
 
-    assert exc_info.value.status_code == 400
-    assert "diretorio não encontrado" in exc_info.value.detail
+    assert exc_info.value.status_code == 500
+    assert "Erro ao salvar" in exc_info.value.detail
 
 
 def test_delete_file_e_list_files_sucesso(monkeypatch, tmp_path):

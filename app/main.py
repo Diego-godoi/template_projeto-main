@@ -1,8 +1,10 @@
 import logging
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -48,6 +50,25 @@ async def validation_exception_handler(
     )
 
 
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(
+    request: Request, exc: RequestValidationError
+):
+    formatted_errors = []
+    for err in exc.errors():
+        msg = err.get("msg", "")
+        if msg.startswith("Value error, "):
+            msg = msg.removeprefix("Value error, ")
+        formatted_errors.append(
+            {
+                "loc": err.get("loc", []),
+                "msg": msg,
+                "type": err.get("type", "value_error"),
+            }
+        )
+    return JSONResponse(status_code=422, content={"detail": formatted_errors})
+
+
 @app.exception_handler(DatabaseException)
 async def database_exception_handler(request: Request, exc: DatabaseException):
     """
@@ -55,7 +76,9 @@ async def database_exception_handler(request: Request, exc: DatabaseException):
     para o requisitante de forma protegida, evitando vazamento arquitetural na stacktrace.
     """
     logger.error(
-        f"Erro no BD detectado pela requisição {request.url}: {exc.detail}"
+        "Erro no BD detectado pela requisição %s: %s",
+        request.url,
+        exc.detail,
     )
 
     # Podemos suprimir e mascarar os detalhes internos do banco para o usuário final
@@ -74,12 +97,33 @@ async def custom_exception_handler(request: Request, exc: CustomException):
     para o requisitante de forma protegida, evitando vazamento arquitetural na stacktrace.
     """
     logger.error(
-        f"Erro personalizado detectado pela requisição {request.url}: {exc.detail}"
+        "Erro personalizado detectado pela requisição %s: %s",
+        request.url,
+        exc.detail,
     )
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail},
     )
+
+
+@app.exception_handler(ValidationError)
+async def pydantic_validation_exception_handler(
+    request: Request, exc: ValidationError
+):
+    formatted_errors = []
+    for err in exc.errors():
+        msg = err.get("msg", "")
+        if msg.startswith("Value error, "):
+            msg = msg.removeprefix("Value error, ")
+        formatted_errors.append(
+            {
+                "loc": ["body", *err.get("loc", [])],
+                "msg": msg,
+                "type": err.get("type", "value_error"),
+            }
+        )
+    return JSONResponse(status_code=422, content={"detail": formatted_errors})
 
 
 app.include_router(api.routers, prefix=core.settings.API_URL_PREFIX)

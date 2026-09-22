@@ -1,6 +1,5 @@
 from uuid import UUID
 
-from fastapi import Form
 from pydantic import BaseModel, ConfigDict, Field
 
 from .base_schema import MetaData
@@ -25,17 +24,6 @@ class PostUserRoles(BaseModel):
     user_id: UUID = Field(..., description="ID do usuário (UUID)")
     role_id: UUID = Field(..., description="ID do papel (UUID)")
 
-    @classmethod
-    def as_form(
-        cls,
-        user_id: UUID = Form(..., description="ID do usuário (UUID)"),
-        role_id: UUID = Form(..., description="ID do papel (UUID)"),
-    ):
-        return cls(
-            user_id=user_id,
-            role_id=role_id,
-        )
-
 
 class GetUserRoles(BaseModel):
     """
@@ -47,11 +35,9 @@ class GetUserRoles(BaseModel):
         id (UUID): Identificador único da associação.
     """
 
+    id: UUID = Field(..., description="ID da associação (UUID)")
     user_id: UUID = Field(..., description="ID do usuário")
     role_id: UUID = Field(..., description="ID do papel")
-    id: UUID = Field(..., description="ID da associação (UUID)")
-
-    #    role: list[GetRoles | None]
 
     model_config = ConfigDict(from_attributes=True)
 

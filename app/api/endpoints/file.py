@@ -1,30 +1,36 @@
 import os
-from enum import Enum
+from typing import Annotated
 
 import magic
-from fastapi import APIRouter, File, Form, Security, UploadFile, responses
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    Request,
+    UploadFile,
+    responses,
+)
 from pydantic.types import UUID4
 
 from app import auth, error
 from app.core.config import settings
+from app.core.limiter import UPLOAD_LIMIT, limiter
+from app.schema import FileType
 from app.util.functions import save_file
+from app.util.validators import validate_file_metadata
 
 router = APIRouter(prefix="/file", tags=["File"])
 
 
-class FileType(str, Enum):
-    Application = "application"
-    Image = "image"
-    Text = "text"
-    Video = "video"
-
-
 @router.post("/")
+@limiter.limit(UPLOAD_LIMIT)
 async def create_file(
-    file: UploadFile = File(...),
-    type_data: FileType = Form(...),
-    Authentication: dict = Security(
-        auth.get_current_payload, scopes=["user", "admin"]
+    request: Request,
+    file: Annotated[UploadFile, File(...)],
+    type_data: Annotated[FileType, Form(...)],
+    Authentication: dict = Depends(
+        auth.require_roles("User", "Manager", "Admin")
     ),
 ) -> str:
     """
@@ -50,16 +56,20 @@ async def create_file(
     - Os tipos de arquivo suportados são definidos pelo enumerador `core.models.FileType`.
 
     """
-
-    filename = await save_file(file, type_data)
+    err_msg = await validate_file_metadata(file, type_data)
+    if err_msg:
+        raise error.CustomException(422, err_msg)
+    filename = await save_file(file)
     return filename
 
 
 @router.get("/{filename}", response_class=responses.FileResponse)
+@limiter.limit(UPLOAD_LIMIT)
 def get_file_by_filename(
+    request: Request,
     filename: UUID4,
-    Authentication: dict = Security(
-        auth.get_current_payload, scopes=["user", "admin"]
+    Authentication: dict = Depends(
+        auth.require_roles("User", "Manager", "Admin")
     ),
 ):
     if os.path.exists(f"{settings.UPLOAD_DIR}{filename!s}"):
