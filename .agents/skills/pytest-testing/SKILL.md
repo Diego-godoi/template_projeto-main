@@ -15,9 +15,8 @@ A organização separa a **lógica de negócio** (Unit) da **lógica de sistema*
 tests/
 ├── factories.py       # Ponto central para FactoryBoy
 ├── conftest.py        # Fixtures globais, db_session, clients
-├── unit/              # Lógica pura, validadores, funções independentes
-└── integration/       # Endpoints, DB, Auth, serviços acoplados
-
+├── test_***_service.py
+└── test_***_api.py       
 ```
 
 ---
@@ -34,7 +33,7 @@ Utilize `factory_boy` como única fonte da verdade para dados de teste. A distin
 class UserFactory(factory.alchemy.SQLAlchemyModelFactory):
     class Meta:
         model = User
-        sqlalchemy_session = SessionLocal() # Injeção de sessão
+        sqlalchemy_session = None # Injeção de sessão será feita pelo conftest
 
     id = factory.Sequence(lambda n: n)
     username = factory.Faker("user_name")

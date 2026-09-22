@@ -11,7 +11,7 @@ Neste projeto, a camada de **Service** é a responsável direta pela execução 
 * **Uso do SQLAlchemy 2.0:** Utilize a sintaxe moderna de estilo 2.0. Exemplo: `select(Model).where(...)` em vez de `db.query(Model)`.
 * **Execução Assíncrona:** Toda interação com o banco deve ser feita através de `await db.execute(statement)`.
 * **Tratamento de Resultados:**
-* Para retornar um único objeto: `result.scalars().first()`.
+* Para retornar um único objeto: `result.scalar_one_or_none()`.
 * Para retornar uma lista: `result.scalars().all()`.
 * **Injeção de Dependência:** A `db: AsyncSession` deve ser sempre injetada via parâmetro nas funções do serviço, vinda do `Depends(get_db)` do endpoint.
 * **Transacionalidade:** O `await db.commit()` e `await db.rollback()` devem ser gerenciados dentro do serviço, garantindo que operações que envolvam múltiplas tabelas sejam atômicas.
@@ -25,7 +25,7 @@ Neste projeto, a camada de **Service** é a responsável direta pela execução 
 async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
     query = select(User).where(User.email == email)
     result = await db.execute(query)
-    return result.scalars().first()
+    return result.scalar_one_or_none()
 
 ```
 
@@ -63,10 +63,6 @@ async def transferir_saldo(
     conta_origem.saldo -= valor
     conta_destino.saldo += valor
 
-    try:
-        await db.commit()
-    except Exception:
-        await db.rollback()
-        raise
+    await db.commit()
 
 ```

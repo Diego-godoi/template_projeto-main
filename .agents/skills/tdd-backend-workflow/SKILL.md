@@ -27,12 +27,12 @@ Quando o usuário solicitar o desenvolvimento de uma funcionalidade, **NÃO gere
 
 Com base nas regras de negócio e validações enviadas pelo usuário, escreva **APENAS** a suíte de testes.
 
-1. **Testes Unitários (`tests/unit/`)**:
+1. **Testes Unitários**:
    * Foco em validações puras, regras de domínio e funções independentes.
    * Utilize `factory.build()` da skill `pytest-testing` (sem persistência).
    * Abuse de `@pytest.mark.parametrize` para cobrir caminhos felizes e tristes/casos de borda.
 
-2. **Testes de Integração (`tests/integration/`)**:
+2. **Testes de Integração**:
    * Foco em operações de banco e fluxos completos do Service.
    * Utilize `factory.create()` para objetos persitidos.
    * Garanta o uso de `AsyncSession` e marcadores assíncronos.
@@ -49,13 +49,13 @@ Após o usuário aprovar os testes da Fase 1, implemente a camada de **Service**
 1. **Siga a Skill `sqlalchemy-service-crud`**:
    * Utilize a sintaxe SQLAlchemy 2.0 (`select`, `await db.execute`).
    * Receba `db: AsyncSession` por parâmetro.
-   * Gerencie a transacionalidade (`commit`/`rollback`) no Service.
+   * Gerencie a transacionalidade (`commit`) no Service.
 2. **Código Estritamente Necessário**:
    * Escreva **apenas** o código necessário para fazer os testes do Passo 1 passarem. Não adicione abstrações precoces ou cenários não testados.
 
 ⛔ **PARADA OBRIGATÓRIA:** Finalize a resposta mostrando a implementação da Service e forneça o comando de execução para o usuário validar:
 ```bash
-poetry run pytest tests/path/to/test.py -v
+poetry run pytest tests/test.py -v
 
 ```
 

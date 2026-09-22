@@ -6,7 +6,7 @@ description: Diretrizes obrigatórias para recepção e manipulação de arquivo
 # Manipulação de Arquivos
 
 ## 1. No Schema
-- Sempre use o parâmetro de formatação de Pydantic (`.as_form`) para lidar com formulários multipart.
+- Sempre use o parâmetro de formatação de Pydantic (`Annoteded[schema, Form()]`) para lidar com formulários multipart.
 - Campos de arquivo opcionais devem ser definidos explicitamente como opcionais: `UploadFile | None = File(None)`.
 
 ## 2. Nos Services

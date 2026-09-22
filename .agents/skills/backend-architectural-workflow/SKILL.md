@@ -42,7 +42,6 @@ Para garantir a integridade do sistema, novas funcionalidades devem seguir esta 
 * **Dependency Injection (DI):** Utilize FastAPI Depends() para injetar sessões e serviços.
 * **Tratamento de Erros:** A camada de serviço não sabe que é uma API. Ela lança exceções de domínio que o exception_handler global traduz para status HTTP.
 * **Unit of Work:** A sessão de banco de dados (Session) deve ser injetada e compartilhada durante todo o ciclo de vida da requisição para garantir atomicidade.
-* **Modularidade (Vertical Slicing):** Agrupe funcionalidades por domínio (ex: app/modules/billing/) contendo suas próprias rotas, modelos e serviços sempre que possível.
 * **Singleton:** Aplique para configurações globais em app/core/config.py.
 
 ---
