@@ -7,7 +7,11 @@ from app.db.session import _db
 from app.services.user_roles_service import UserRolesService
 from app.util import QueryParametersDep
 
-router = APIRouter(prefix="/user-roles", tags=["UserRoles"])
+router = APIRouter(
+    prefix="/user-roles",
+    tags=["UserRoles"],
+    dependencies=[Depends(auth.require_roles("Admin"))],
+)
 
 
 @router.get(
@@ -20,7 +24,6 @@ async def get_user_roles(
     request: Request,
     query_parameters: QueryParametersDep,
     session: _db,
-    Authentication: dict = Depends(auth.require_roles("Admin")),
 ) -> schema.ResponseUserRoles:
     """Realiza requisiçoes tipo **GET** em **UserRoles** models"""
     return await UserRolesService.get_user_roles(query_parameters, session)
@@ -36,7 +39,6 @@ async def create_user_roles(
     request: Request,
     json_data: schema.PostUserRoles,
     session: _db,
-    Authentication: dict = Depends(auth.require_roles("Admin")),
 ) -> schema.GetUserRoles:
     """Recebe uma requisição tipo `POST` contendo dados referente a **UserRoles**"""
     return await UserRolesService.create_user_role(json_data, session)
@@ -53,7 +55,6 @@ async def update_user_roles_by_uuid(
     request: Request,
     json_data: schema.PatchUserRoles,
     session: _db,
-    Authentication: dict = Depends(auth.require_roles("Admin")),
 ) -> schema.GetUserRoles:
     """Atualiza um dado na tabela **UserRoles** a partir de um UUID valido"""
     return await UserRolesService.patch_user_role(id, json_data, session)
@@ -68,7 +69,6 @@ async def delete_user_roles_by_uuid(
     id: UUID4,
     request: Request,
     session: _db,
-    Authentication: dict = Depends(auth.require_roles("Admin")),
 ):
     """Deleta um dado na tabela **UserRoles** a partir do seu UUID"""
     await UserRolesService.delete_user_role(id, session)

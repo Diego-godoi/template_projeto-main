@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from sqlalchemy import select
@@ -7,6 +8,8 @@ from app.db import QueryBuilder, ServiceResponse, _db
 from app.models import Roles
 from app.schema import PatchRoles, PostRoles
 from app.util import QueryParametersDep
+
+logger = logging.getLogger(__name__)
 
 
 class RolesService:
@@ -30,6 +33,7 @@ class RolesService:
             dict: Um dicionário contendo a lista de 'items' (Roles) e
                   o 'total' de registros encontrados.
         """
+        logger.debug("Buscando papéis")
         builder = (
             QueryBuilder(models.Roles)
             .filter(
@@ -44,6 +48,7 @@ class RolesService:
         stmt = builder.paginate(query_params.skip, query_params.limit).build()
         data = (await session.execute(stmt)).scalars().unique().all()
         meta = {"total_items": total_items}
+        logger.debug("Papéis buscados com sucesso")
         return ServiceResponse(data=data, meta=meta)
 
     @staticmethod
@@ -61,10 +66,12 @@ class RolesService:
             Roles: O objeto Roles recém-criado e salvo no banco.
         """
         errors = []
+        logger.debug("Iniciando criação de papel")
 
         stmt = select(Roles).where(Roles.name == schema.name).limit(1)
         existing_role = (await session.execute(stmt)).scalars().first()
         if existing_role:
+            logger.warning("Papel já cadastrado")
             errors.append(
                 {
                     "loc": ["body", "name"],
@@ -74,12 +81,14 @@ class RolesService:
             )
 
         if errors:
+            logger.warning("Erros encontrados ao validar papel")
             raise error.ValidationException(errors)
 
         data = Roles(**schema.model_dump())
         session.add(data)
         await session.commit()
         await session.refresh(data)
+        logger.info("Papel criado com sucesso")
         return data
 
     @staticmethod
@@ -101,12 +110,15 @@ class RolesService:
         Returns:
             Roles: O objeto Roles atualizado.
         """
+        logger.debug("Iniciando atualização de papel")
         role_to_update = await session.get(Roles, id)
 
         if not role_to_update:
+            logger.warning("Papel não encontrado")
             raise error.CustomException(404, "ID não encontrado")
 
         if role_to_update.is_system:
+            logger.warning("Atualização de papel de sistema rejeitada")
             raise error.CustomException(
                 403, "Não é possível atualizar uma role de sistema"
             )
@@ -120,6 +132,7 @@ class RolesService:
             )
             existing_role = (await session.execute(stmt)).scalars().first()
             if existing_role and existing_role.id != id:
+                logger.warning("Papel já cadastrado")
                 errors.append(
                     {
                         "loc": ["body", "name"],
@@ -129,6 +142,7 @@ class RolesService:
                 )
 
         if errors:
+            logger.warning("Erros encontrados ao validar papel")
             raise error.ValidationException(errors)
 
         for key, value in update_data.items():
@@ -138,6 +152,7 @@ class RolesService:
         await session.commit()
         await session.refresh(role_to_update)
 
+        logger.info("Papel atualizado com sucesso")
         return role_to_update
 
     @staticmethod
@@ -155,12 +170,15 @@ class RolesService:
         Returns:
             Roles: O objeto Roles que foi deletado (em estado 'detached').
         """
+        logger.debug("Iniciando exclusão de papel")
         role_to_delete = await session.get(Roles, id)
 
         if not role_to_delete:
+            logger.warning("Papel não encontrado")
             raise error.CustomException(404, "ID não encontrado")
 
         if role_to_delete.is_system:
+            logger.warning("Exclusão de papel de sistema rejeitada")
             raise error.CustomException(
                 403, "Não é possível deletar uma role de sistema"
             )
@@ -168,4 +186,5 @@ class RolesService:
         await session.delete(role_to_delete)
         await session.commit()
 
+        logger.info("Papel excluído com sucesso")
         return role_to_delete

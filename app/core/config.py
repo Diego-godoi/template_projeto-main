@@ -1,6 +1,7 @@
+from typing import Literal
 from urllib.parse import quote_plus
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 __all__ = ["settings"]
@@ -48,6 +49,19 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER_PASSWORD: str | None = Field(
         None, description="Senha do primeiro superusuário"
     )
+
+    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = (
+        Field(
+            default="INFO",
+            description="Nível de log da aplicação (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+        )
+    )
+
+    @field_validator("LOG_LEVEL", mode="before")
+    @classmethod
+    def normalize_log_level(cls, v: str) -> str:
+        """Garante que o valor seja sempre maiúsculo, independente do que vier no .env."""
+        return v.upper()
 
     TEMPLATES_DIR: str | None = Field(
         None, description="Diretório de templates"

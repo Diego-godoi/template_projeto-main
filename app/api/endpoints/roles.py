@@ -7,7 +7,11 @@ from app.db.session import _db
 from app.services.roles_service import RolesService
 from app.util import QueryParametersDep
 
-router = APIRouter(prefix="/roles", tags=["Roles"])
+router = APIRouter(
+    prefix="/roles",
+    tags=["Roles"],
+    dependencies=[Depends(auth.require_roles("Admin"))],
+)
 
 
 @router.get(
@@ -20,7 +24,6 @@ async def get_roles(
     request: Request,
     query_parameters: QueryParametersDep,
     session: _db,
-    Authorization: dict = Depends(auth.require_roles("Manager", "Admin")),
 ) -> schema.ResponseRoles:
     """Realiza requisiçoes tipo **GET** em **Roles** models
 
@@ -44,7 +47,6 @@ async def create_roles(
     request: Request,
     json_data: schema.PostRoles,
     session: _db,
-    Authentication: dict = Depends(auth.require_roles("Admin")),
 ) -> schema.GetRoles:
     """Recebe uma requisição tipo `POST` contendo dados referente a **Roles**
 
@@ -70,7 +72,6 @@ async def update_roles_by_id(
     request: Request,
     json_data: schema.PatchRoles,
     session: _db,
-    Authentication: dict = Depends(auth.require_roles("Admin")),
 ) -> schema.GetRoles:
     """Atualiza um dado na tabela **Roles** a partir de um UUID valido
 
@@ -94,7 +95,6 @@ async def delete_roles_by_id(
     id: UUID4,
     request: Request,
     session: _db,
-    Authentication: dict = Depends(auth.require_roles("Admin")),
 ):
     """Deleta um dado na tabela **Roles** a partir do seu UUID
 

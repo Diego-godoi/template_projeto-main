@@ -11,7 +11,6 @@ from app.util.annotated import QueryParameters
 from .factories import RolesFactory
 
 
-@pytest.mark.asyncio
 async def test_create_role_com_sucesso(async_db_session: AsyncSession):
     role_payload = schema.PostRoles(
         name="Vendedor", description="Descrição do vendedor"
@@ -21,7 +20,6 @@ async def test_create_role_com_sucesso(async_db_session: AsyncSession):
     assert result.name == "Vendedor"
 
 
-@pytest.mark.asyncio
 async def test_create_role_nome_duplicado_levanta_erro(
     async_db_session: AsyncSession,
 ):
@@ -39,7 +37,6 @@ async def test_create_role_nome_duplicado_levanta_erro(
     assert any("já está cadastrado" in err["msg"] for err in errors)
 
 
-@pytest.mark.asyncio
 async def test_patch_role_com_sucesso(async_db_session: AsyncSession):
     role = RolesFactory.create(name="Supervisor")
     await async_db_session.flush()
@@ -53,7 +50,6 @@ async def test_patch_role_com_sucesso(async_db_session: AsyncSession):
     assert role_atualizada.name == "Supervisor"  # Não alterado
 
 
-@pytest.mark.asyncio
 async def test_patch_role_nome_duplicado_levanta_erro(
     async_db_session: AsyncSession,
 ):
@@ -69,7 +65,6 @@ async def test_patch_role_nome_duplicado_levanta_erro(
     assert any("já está cadastrado" in err["msg"] for err in errors)
 
 
-@pytest.mark.asyncio
 async def test_patch_role_id_inexistente_levanta_404(
     async_db_session: AsyncSession,
 ):
@@ -80,7 +75,6 @@ async def test_patch_role_id_inexistente_levanta_404(
     assert exc_info.value.status_code == 404
 
 
-@pytest.mark.asyncio
 async def test_delete_role_com_sucesso(async_db_session: AsyncSession):
     role = RolesFactory.create(name="Temporario")
     await async_db_session.flush()
@@ -90,7 +84,6 @@ async def test_delete_role_com_sucesso(async_db_session: AsyncSession):
     assert await async_db_session.get(Roles, role_id) is None
 
 
-@pytest.mark.asyncio
 async def test_delete_role_id_inexistente_levanta_404(
     async_db_session: AsyncSession,
 ):
@@ -100,7 +93,6 @@ async def test_delete_role_id_inexistente_levanta_404(
     assert exc_info.value.status_code == 404
 
 
-@pytest.mark.asyncio
 async def test_get_roles_paginado(async_db_session: AsyncSession):
     RolesFactory.create(name="List_Role_1")
     RolesFactory.create(name="List_Role_2")

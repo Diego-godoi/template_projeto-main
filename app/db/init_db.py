@@ -1,11 +1,14 @@
+import logging
 from collections.abc import Iterable
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import core, models, schema
+from app import core, models
 
 __all__ = ["pop_db"]
+
+logger = logging.getLogger(__name__)
 
 users = [
     {
@@ -29,16 +32,24 @@ async def _ensure_default_users(
     for item in data:
         if await _get_by_field(db, models.Users, "email", item["email"]):
             continue
+
         role = await _get_by_field(db, models.Roles, "name", item["role"])
-        user_data = models.Users(
-            **schema.PostUsers(
-                **{k: v for k, v in item.items() if k != "role"}
-            ).model_dump()
+        if role is None:
+            raise RuntimeError(
+                f"Role '{item['role']}' não encontrada. "
+                "Rode as migrations (seed de roles) antes do pop_db."
+            )
+
+        user = models.Users(
+            name=item["name"],
+            email=item["email"],
+            cpf=item["cpf"],
+            password=await core.get_password_hash(item["password"]),
         )
-        user_data.password = await core.get_password_hash(item["password"])
-        if role:
-            user_data.user_roles.append(models.UserRoles(role=role))
-        db.add(user_data)
+        user.user_roles.append(models.UserRoles(role=role))
+        db.add(user)
+        logger.info("Usuário padrão '%s' criado", item["email"])
+
     await db.commit()
 
 

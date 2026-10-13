@@ -1,4 +1,3 @@
-import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import core
@@ -7,7 +6,6 @@ from app.core import security
 from .factories import UsersFactory
 
 
-@pytest.mark.asyncio
 async def test_post_login_success(client, async_db_session: AsyncSession):
     raw_password = "SenhaForte@123"
     hashed_password = await core.get_password_hash(raw_password)
@@ -24,7 +22,6 @@ async def test_post_login_success(client, async_db_session: AsyncSession):
     assert response.status_code == 200
 
 
-@pytest.mark.asyncio
 async def test_post_login_credenciais_incorretas(
     client, async_db_session: AsyncSession
 ):
@@ -43,7 +40,6 @@ async def test_post_login_credenciais_incorretas(
     assert response.status_code in [400, 401, 422]
 
 
-@pytest.mark.asyncio
 async def test_forgot_my_password_retorna_mensagens_iguais_para_impedir_enum_de_emails(
     client, async_db_session: AsyncSession
 ):
@@ -81,7 +77,6 @@ async def test_forgot_my_password_retorna_mensagens_iguais_para_impedir_enum_de_
         assert mock_send.call_count == 1
 
 
-@pytest.mark.asyncio
 async def test_new_password_com_sucesso_e_expiracao(
     client, async_db_session: AsyncSession
 ):
@@ -131,7 +126,6 @@ async def test_new_password_com_sucesso_e_expiracao(
     assert "Código expirado" in response_expr.json()["detail"]
 
 
-@pytest.mark.asyncio
 async def test_new_password_com_codigo_invalido(
     client, async_db_session: AsyncSession
 ):

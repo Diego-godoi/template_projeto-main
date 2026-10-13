@@ -1,10 +1,12 @@
+import logging
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
 from app import core, error, models, schema, util
 from app.db import _db
-from app.util import normalize_lower
+
+logger = logging.getLogger(__name__)
 
 
 class AuthService:
@@ -22,8 +24,8 @@ class AuthService:
         Os papéis do usuário são incluídos no token e recalculados pelo
         `decode_token()` com base no banco em toda requisição.
         """
-        username_normalizado = normalize_lower(username)
-        if not username_normalizado:
+        if not username:
+            logger.warning("Tentativa de login sem identificador")
             raise error.CustomException(400, "Email ou Senha invalidos")
 
         stmt = (
@@ -37,7 +39,7 @@ class AuthService:
                 models.Roles.id == models.UserRoles.role_id,
             )
             .where(
-                models.Users.email == username_normalizado,
+                models.Users.email == username,
                 models.Users.is_deleted == False,
             )
         )
@@ -45,6 +47,9 @@ class AuthService:
         user: models.Users | None = rows[0][0] if rows else None
 
         if not user or not await core.verify_password(password, user.password):
+            logger.warning(
+                "Tentativa de login rejeitada por credenciais inválidas"
+            )
             raise error.CustomException(400, "Email ou Senha invalidos")
 
         roles = sorted({role.lower() for _, role in rows if role})
@@ -53,6 +58,7 @@ class AuthService:
             "roles": roles,
         }
 
+        logger.info("Login realizado com sucesso")
         return user, payload_data
 
     @staticmethod
@@ -78,6 +84,9 @@ class AuthService:
         )
         user = (await session.execute(stmt)).scalars().first()
         if not user:
+            logger.debug(
+                "Solicitação de redefinição sem usuário correspondente"
+            )
             return message, None
 
         code = util.generate_code()
@@ -94,6 +103,7 @@ class AuthService:
         await session.commit()
         await session.refresh(user)
 
+        logger.info("Código de redefinição de senha gerado com sucesso")
         return message, (email, core.settings.PROJECT_NAME, body)
 
     @staticmethod
@@ -115,12 +125,15 @@ class AuthService:
             or not user.reset_password_code
             or not user.reset_password_expiration
         ):
+            logger.warning("Tentativa de redefinição com dados inválidos")
             raise error.CustomException(401, "Email ou código inválido")
 
         if datetime.now(timezone.utc) > user.reset_password_expiration:
+            logger.warning("Tentativa de redefinição com código expirado")
             raise error.CustomException(401, "Código expirado")
 
         if not await core.verify_password(data.code, user.reset_password_code):
+            logger.warning("Tentativa de redefinição com código inválido")
             raise error.CustomException(401, "Email ou código inválido")
 
         senha_final = (
@@ -137,4 +150,5 @@ class AuthService:
         await session.commit()
         await session.refresh(user)
 
+        logger.info("Senha redefinida com sucesso")
         return "Senha alterada"

@@ -3,9 +3,9 @@
 Testes abrangentes dos utilitários lógicos do sistema (conversões de formatos de cases e códigos numéricos).
 """
 
+import io
 import os
 
-import anyio
 import pytest
 from fastapi import UploadFile
 
@@ -99,7 +99,6 @@ def test_generate_cpf_validez():
 # ==========================================
 
 
-@pytest.mark.asyncio
 async def test_save_file_video_sucesso(monkeypatch, tmp_path):
     """Testa salvar um arquivo de vídeo autêntico apontando para temp_dir."""
     monkeypatch.setattr(
@@ -117,14 +116,15 @@ async def test_save_file_video_sucesso(monkeypatch, tmp_path):
         # UploadFile do FastAPI
         file_mock = UploadFile(filename="video.mp4", file=f)
         try:
-            saved_name = await functions.save_file(file_mock)
+            saved_name = await functions.save_file(
+                file_mock, functions.FileType.Video
+            )
             assert saved_name is not None
             assert os.path.exists(os.path.join(str(tmp_path), saved_name))
         finally:
             file_mock.file.close()
 
 
-@pytest.mark.asyncio
 async def test_save_file_formato_invalido(monkeypatch, tmp_path):
     """Tentando passar o vídeo mas pedindo validação de imagem deve falhar."""
     monkeypatch.setattr(
@@ -137,7 +137,7 @@ async def test_save_file_formato_invalido(monkeypatch, tmp_path):
 
     with open(video_path, "rb") as f:  # noqa: ASYNC230
         file_mock = UploadFile(filename="video.mp4", file=f)
-        from app.schema import FileType
+        from app.schema.enums import FileType
         from app.util.validators import validate_file_metadata
 
         error_msg = await validate_file_metadata(file_mock, FileType.Image)
@@ -145,17 +145,20 @@ async def test_save_file_formato_invalido(monkeypatch, tmp_path):
         assert "Formato de mídia inválido" in error_msg
 
 
-@pytest.mark.asyncio
 async def test_save_file_dir_nao_encontrado(monkeypatch):
     """Garante que a função aborte se UPLOAD_DIR for inválido."""
     monkeypatch.setattr(
         "app.util.functions.settings.UPLOAD_DIR", "/dir/inexistente/invalido"
     )
 
-    async with await anyio.open_file(os.devnull, "rb") as f:
-        file_mock = UploadFile(filename="teste.txt", file=f)
-        with pytest.raises(CustomException) as exc_info:
-            await functions.save_file(file_mock)
+    # Use a standard synchronous BytesIO object to mock the file payload
+    file_content = b"dummy file content for magic buffer"
+    f = io.BytesIO(file_content)
+
+    file_mock = UploadFile(filename="teste.txt", file=f)
+
+    with pytest.raises(CustomException) as exc_info:
+        await functions.save_file(file_mock, functions.FileType.Application)
 
     assert exc_info.value.status_code == 500
     assert "Erro ao salvar" in exc_info.value.detail
@@ -163,6 +166,9 @@ async def test_save_file_dir_nao_encontrado(monkeypatch):
 
 def test_delete_file_e_list_files_sucesso(monkeypatch, tmp_path):
     """Testa criação, listagem e exclusão atômica em tmp_path."""
+    monkeypatch.setattr(
+        "app.util.functions.settings.UPLOAD_DIR", str(tmp_path)
+    )
     test_dir = str(tmp_path) + "/"
     # Criar um arquivo dummy manual
     with open(test_dir + "dummy.txt", "w") as f:
@@ -174,16 +180,19 @@ def test_delete_file_e_list_files_sucesso(monkeypatch, tmp_path):
     assert len(files) == 1
 
     # Deletar arquivo
-    sucesso = functions.delete_file(test_dir, "dummy.txt")
+    sucesso = functions.delete_file("dummy.txt")
     assert sucesso is True
 
     # Garantir que sumiu
     assert len(functions.list_files(test_dir)) == 0
 
 
-def test_delete_file_inexistente():
+def test_delete_file_inexistente(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "app.util.functions.settings.UPLOAD_DIR", str(tmp_path)
+    )
     """Garante CustomException 404 ao tentar deletar arquivo fantasma."""
     with pytest.raises(CustomException) as exc_info:
-        functions.delete_file("/caminho/invalido/", "dummy.txt")
+        functions.delete_file("dummy.txt")
 
     assert exc_info.value.status_code == 404

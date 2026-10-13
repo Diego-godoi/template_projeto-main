@@ -6,8 +6,10 @@ import random
 import re
 import string
 import uuid
+from enum import Enum
 
 import anyio
+import magic
 from fastapi import UploadFile
 
 from app import error
@@ -15,7 +17,9 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+
 __all__ = [
+    "FileType",
     "camel_to_kebab",
     "camel_to_snake_case",
     "delete_file",
@@ -28,8 +32,24 @@ __all__ = [
     "save_csv_file",
     "save_file",
     "snake_to_pascal_case",
+    "validate_file_metadata",
 ]
 CHUNK_SIZE = 1024 * 1024  # 1MB
+
+
+class FileType(str, Enum):
+    Application = "application"
+    Image = "image"
+    Text = "text"
+    Video = "video"
+
+
+ALLOWED_MIME_TYPES: dict[FileType, set[str]] = {
+    FileType.Image: {"image/jpeg", "image/png", "image/webp"},
+    FileType.Video: {"video/mp4", "video/webm", "video/quicktime"},
+    FileType.Application: {"application/pdf", "text/plain"},
+    FileType.Text: {"text/plain", "text/csv"},
+}
 
 
 def pascal_to_camel_case(string):
@@ -72,24 +92,66 @@ def camel_to_snake_case(camel_str):
 
 def _safe_remove(path: str) -> None:
     """Remove um arquivo se ele existir, sem lançar erro caso contrario."""
-    if os.path.exists(path):
-        os.remove(path)
+    pathlib.Path(path).unlink(missing_ok=True)
 
 
-async def save_file(file: UploadFile) -> str:
-    """Salva um UploadFile na subpasta correspondente à sua categoria.
+async def validate_file_metadata(
+    file: UploadFile, type_data: FileType
+) -> str | None:
+    """Valida o MIME type real de um arquivo sem consumi-lo da memória/disco.
+
+    Lê apenas os primeiros bytes para detectar o tipo MIME real via magic bytes.
+    Ao final, reposiciona o ponteiro de leitura no início (seek(0)) para que o
+    arquivo possa ser lido/salvo posteriormente sem perdas.
+
+    Args:
+        file (UploadFile): Arquivo enviado pelo cliente.
+        type_data (FileType): Tipo esperado (Image, Video, Application).
+
+    Returns:
+        str | None: Retorna a mensagem de erro se inválido, ou None se válido.
+    """
+    if not file or not file.filename:
+        return "Arquivo não fornecido"
+
+    allowed = ALLOWED_MIME_TYPES.get(type_data, set())
+
+    # Lê os primeiros bytes para conferir os "magic bytes" reais do arquivo
+    header = await file.read(2048)
+
+    # IMPORTANTE: Reposiciona o ponteiro no início do arquivo para leituras futuras
+    await file.seek(0)
+
+    mime_type = str(magic.from_buffer(header, mime=True))
+
+    if mime_type not in allowed:
+        return f"Formato de mídia inválido ('{mime_type}'). Permitidos: {', '.join(allowed)}"
+
+    return None
+
+
+async def save_file(file: UploadFile, type_data: FileType) -> str:
+    """Salva um UploadFile.
+
+    Valida os metadados antes de iniciar a escrita e grava em modo streaming.
 
     Args:
         file (UploadFile): Arquivo enviado pelo usuário.
+        type_data (FileType): Tipo esperado, usado para validar o mimetype real.
 
     Raises:
+        CustomException: 422 se o mimetype for inválido.
         CustomException: 500 se ocorrer erro durante a escrita.
 
     Returns:
         str: Nome do arquivo salvo.
     """
-
     directory = settings.UPLOAD_DIR
+    # 1. Valida antes de criar qualquer arquivo no sistema de arquivos
+    err_msg = await validate_file_metadata(file, type_data)
+    if err_msg:
+        raise error.CustomException(422, err_msg)
+
     ext = pathlib.Path(file.filename).suffix if file.filename else ""
     name = f"{uuid.uuid4()}{ext}"
     final_path = os.path.join(directory, name)
@@ -141,19 +203,19 @@ async def save_csv_file(directory: str, header: list, data: list) -> str:
     return name
 
 
-def delete_file(path: str, filename: str) -> bool:
+def delete_file(filename: str) -> bool:
     """Exclui um arquivo atraves de seu caminho e nome
 
     Args:
-        path (str): Diretorio onde encontra-se o arquivo
         filename (str): Nome do arquivo a ser excludio
     Raises:
         FileNotFoundError: Arquivo ou diretorio nao encontrado
     Returns:
         bool: retorna true em caso de sucesso
     """
+    path = settings.UPLOAD_DIR
     try:
-        os.remove(f"{path}{filename}")
+        os.remove(os.path.join(path, filename))
         return True
     except FileNotFoundError:
         raise error.CustomException(404, "Arquivo ou diretorio não encontrado")

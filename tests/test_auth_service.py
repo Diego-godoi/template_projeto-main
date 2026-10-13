@@ -21,7 +21,6 @@ from .factories import UsersFactory
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_login_com_sucesso(async_db_session: AsyncSession):
     """Login com credenciais válidas deve retornar (user, sub)."""
     raw_password = "SenhaForte@123"
@@ -39,7 +38,6 @@ async def test_login_com_sucesso(async_db_session: AsyncSession):
     assert isinstance(payload["roles"], list)
 
 
-@pytest.mark.asyncio
 async def test_login_username_vazio_levanta_400(
     async_db_session: AsyncSession,
 ):
@@ -50,7 +48,6 @@ async def test_login_username_vazio_levanta_400(
     assert exc_info.value.status_code == 400
 
 
-@pytest.mark.asyncio
 async def test_login_email_inexistente_levanta_400(
     async_db_session: AsyncSession,
 ):
@@ -64,7 +61,6 @@ async def test_login_email_inexistente_levanta_400(
     assert "Email ou Senha" in exc_info.value.detail
 
 
-@pytest.mark.asyncio
 async def test_login_senha_incorreta_levanta_400(
     async_db_session: AsyncSession,
 ):
@@ -84,7 +80,6 @@ async def test_login_senha_incorreta_levanta_400(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_request_password_reset_usuario_inexistente_retorna_mensagem_generica(
     async_db_session: AsyncSession,
 ):
@@ -97,7 +92,6 @@ async def test_request_password_reset_usuario_inexistente_retorna_mensagem_gener
     assert email_payload is None
 
 
-@pytest.mark.asyncio
 async def test_request_password_reset_usuario_existente_gera_codigo(
     async_db_session: AsyncSession,
 ):
@@ -125,7 +119,6 @@ async def test_request_password_reset_usuario_existente_gera_codigo(
     assert user.reset_password_expiration is not None
 
 
-@pytest.mark.asyncio
 async def test_reset_password_com_sucesso(async_db_session: AsyncSession):
     """Reset de senha com código válido deve alterar a senha."""
     user = UsersFactory.create()
@@ -149,7 +142,6 @@ async def test_reset_password_com_sucesso(async_db_session: AsyncSession):
     assert await core.verify_password("NovaSenha@456", user.password)
 
 
-@pytest.mark.asyncio
 async def test_reset_password_usuario_inexistente_levanta_401(
     async_db_session: AsyncSession,
 ):
@@ -164,7 +156,6 @@ async def test_reset_password_usuario_inexistente_levanta_401(
     assert exc_info.value.status_code == 401
 
 
-@pytest.mark.asyncio
 async def test_reset_password_codigo_expirado_levanta_401(
     async_db_session: AsyncSession,
 ):
@@ -190,7 +181,6 @@ async def test_reset_password_codigo_expirado_levanta_401(
     assert "expirado" in exc_info.value.detail
 
 
-@pytest.mark.asyncio
 async def test_reset_password_codigo_incorreto_levanta_401(
     async_db_session: AsyncSession,
 ):

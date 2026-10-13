@@ -13,7 +13,7 @@ def test_query_parameters_valid():
         skip=5,
         limit=20,
         json_string='{"key": "value"}',
-        include='["name"]',
+        include=["name"],
     )
     assert qp.operator == "~"
     assert qp.skip == 5

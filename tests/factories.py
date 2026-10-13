@@ -3,7 +3,7 @@ Ponto central de Factories (FactoryBoy) para os testes do template.
 
 Regras:
 - Testes unitários: usar `Factory.build()` -> objeto em memória, sem DB.
-- Testes de integração: usar `Factory.create()` -> persistido no banco.
+- Testes de integração: usar ` Factory.create_async()` -> persistido no banco.
 - Schemas Pydantic são construídos diretamente nos testes; factories ficam
   reservadas para entidades ORM que precisam de persistência e relações.
 """
@@ -25,12 +25,18 @@ DEFAULT_PASSWORD_HASH = (
 )
 
 
-def only_digits(value: str) -> str:
+def _only_digits(value: str) -> str:
     return re.sub(r"\D", "", value)
 
 
-def fake_cpf() -> str:
+def _fake_cpf() -> str:
     return generate_cpf()
+
+
+def _fake_phone() -> str:
+    ddd = fake.random_int(min=11, max=99)
+    subscriber = fake.random_number(digits=8, fix_len=True)
+    return f"{ddd}9{subscriber:08d}"
 
 
 class BaseSQLAlchemyFactory(factory.alchemy.SQLAlchemyModelFactory):
@@ -39,24 +45,46 @@ class BaseSQLAlchemyFactory(factory.alchemy.SQLAlchemyModelFactory):
         sqlalchemy_session = None
         sqlalchemy_session_persistence = None
 
+    @classmethod
+    async def create_async(cls, **kwargs):
+        """Cria e salva um objeto no banco de forma assíncrona."""
+        # 1. Constrói o objeto (e seus relacionamentos) apenas em memória
+        obj = cls.build(**kwargs)
+
+        # 2. Salva no banco de dados
+        session = cls._meta.sqlalchemy_session
+        session.add(obj)
+        await session.commit()
+        await session.refresh(obj)
+
+        return obj
+
+    @classmethod
+    async def create_batch_async(cls, size: int, **kwargs):
+        """Cria e salva múltiplos objetos de forma assíncrona."""
+        objs = cls.build_batch(size, **kwargs)
+
+        session = cls._meta.sqlalchemy_session
+        session.add_all(objs)
+        await session.commit()
+
+        for obj in objs:
+            await session.refresh(obj)
+
+        return objs
+
     id = factory.LazyFunction(uuid.uuid4)
 
 
-class UserFieldsMixin(factory.Factory):
-    class Meta:
-        abstract = True
-
-    name = factory.Faker("name", locale="pt_BR")
-    email = factory.LazyAttribute(lambda o: fake.unique.email())
-    cpf = factory.LazyFunction(fake_cpf)
-
-
-class UsersFactory(UserFieldsMixin, BaseSQLAlchemyFactory):
+class UsersFactory(BaseSQLAlchemyFactory):
     class Meta:
         model = models.Users
 
+    name = factory.Faker("name", locale="pt_BR")
+    email = factory.LazyAttribute(lambda o: fake.unique.email())
+    cpf = factory.LazyFunction(_fake_cpf)
     password = factory.LazyFunction(lambda: DEFAULT_PASSWORD_HASH)
-    is_deleted = False
+    is_deleted = factory.lazy_attribute(lambda o: False)
 
 
 class RolesFactory(BaseSQLAlchemyFactory):

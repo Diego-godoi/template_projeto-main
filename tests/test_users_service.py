@@ -51,7 +51,6 @@ def _assert_validation_field(
 # ===========================================================================
 
 
-@pytest.mark.asyncio
 async def test_cria_usuario_com_sucesso(async_db_session: AsyncSession):
     """Criação com dados válidos retorna objeto Users persistido."""
     payload = schema.PostUsers(
@@ -68,7 +67,6 @@ async def test_cria_usuario_com_sucesso(async_db_session: AsyncSession):
     assert response.cpf == payload.cpf
 
 
-@pytest.mark.asyncio
 async def test_cria_usuario_email_duplicado_levanta_erro(
     async_db_session: AsyncSession,
 ):
@@ -88,7 +86,6 @@ async def test_cria_usuario_email_duplicado_levanta_erro(
     _assert_validation_field(exc_info.value, "email")
 
 
-@pytest.mark.asyncio
 async def test_cria_usuario_cpf_duplicado_levanta_erro(
     async_db_session: AsyncSession,
 ):
@@ -108,7 +105,6 @@ async def test_cria_usuario_cpf_duplicado_levanta_erro(
     _assert_validation_field(exc_info.value, "cpf")
 
 
-@pytest.mark.asyncio
 async def test_cria_usuario_email_e_cpf_duplicados_acumula_erros(
     async_db_session: AsyncSession,
 ):
@@ -133,7 +129,6 @@ async def test_cria_usuario_email_e_cpf_duplicados_acumula_erros(
 # ===========================================================================
 
 
-@pytest.mark.asyncio
 async def test_patch_usuario_com_sucesso(
     async_db_session: AsyncSession,
 ):
@@ -148,7 +143,6 @@ async def test_patch_usuario_com_sucesso(
     assert atualizado.name == "Nome Atualizado"
 
 
-@pytest.mark.asyncio
 async def test_patch_usuario_id_inexistente_levanta_404(
     async_db_session: AsyncSession,
 ):
@@ -165,7 +159,6 @@ async def test_patch_usuario_id_inexistente_levanta_404(
     assert exc_info.value.status_code == 404
 
 
-@pytest.mark.asyncio
 async def test_patch_usuario_email_duplicado_levanta_erro(
     async_db_session: AsyncSession,
 ):
@@ -184,7 +177,6 @@ async def test_patch_usuario_email_duplicado_levanta_erro(
     _assert_validation_field(exc_info.value, "email")
 
 
-@pytest.mark.asyncio
 async def test_patch_usuario_cpf_duplicado_levanta_erro(
     async_db_session: AsyncSession,
 ):
@@ -203,7 +195,6 @@ async def test_patch_usuario_cpf_duplicado_levanta_erro(
     _assert_validation_field(exc_info.value, "cpf")
 
 
-@pytest.mark.asyncio
 async def test_patch_usuario_email_proprio_nao_levanta_erro(
     async_db_session: AsyncSession,
 ):
@@ -220,7 +211,6 @@ async def test_patch_usuario_email_proprio_nao_levanta_erro(
     assert atualizado.email == usuario.email
 
 
-@pytest.mark.asyncio
 async def test_patch_usuario_cpf_proprio_nao_levanta_erro(
     async_db_session: AsyncSession,
 ):
@@ -237,7 +227,6 @@ async def test_patch_usuario_cpf_proprio_nao_levanta_erro(
     assert atualizado.cpf == usuario.cpf
 
 
-@pytest.mark.asyncio
 async def test_patch_usuario_com_senha_nova(
     async_db_session: AsyncSession,
 ):
@@ -260,7 +249,6 @@ async def test_patch_usuario_com_senha_nova(
 # ===========================================================================
 
 
-@pytest.mark.asyncio
 async def test_delete_usuario_sucesso(
     async_db_session: AsyncSession,
 ):
@@ -274,7 +262,6 @@ async def test_delete_usuario_sucesso(
     assert user_no_banco.is_deleted == True
 
 
-@pytest.mark.asyncio
 async def test_delete_usuario_id_inexistente_levanta_404(
     async_db_session: AsyncSession,
 ):
@@ -292,7 +279,6 @@ async def test_delete_usuario_id_inexistente_levanta_404(
 # ===========================================================================
 
 
-@pytest.mark.asyncio
 async def test_get_users_retorna_service_response_vazio(
     async_db_session: AsyncSession,
 ):
@@ -306,7 +292,6 @@ async def test_get_users_retorna_service_response_vazio(
     assert result.meta["total_items"] >= 0
 
 
-@pytest.mark.asyncio
 async def test_get_users_retorna_usuarios_criados(
     async_db_session: AsyncSession,
 ):
@@ -321,7 +306,6 @@ async def test_get_users_retorna_usuarios_criados(
     assert result.meta["total_items"] >= 2
 
 
-@pytest.mark.asyncio
 async def test_get_users_retorna_meta_com_total(
     async_db_session: AsyncSession,
 ):

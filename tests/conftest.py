@@ -1,22 +1,13 @@
 # tests/conftest.py
 """
 Infraestrutura base de testes (Épico 5.1).
-
-Estratégia de isolamento:
-- Engine aponta para banco `template_teste` (banco dedicado para testes).
-- Cada teste roda dentro de uma transação que sofre ROLLBACK ao final,
-    garantindo que nenhum dado persista entre os testes.
-- O FastAPI TestClient recebe override de `get_db` para usar a sessão de teste.
-
-Fixtures compartilhadas:
-- `_inject_session_into_factories` (autouse): injeta a sessão transacional
-  do teste em TODAS as Factories SQLAlchemy.
 """
 
 import asyncio
 from urllib.parse import quote_plus
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     create_async_engine,
@@ -30,24 +21,15 @@ from app.db.session import get_db
 from app.main import app
 from tests.factories import SQLALCHEMY_FACTORIES
 
-# ---------------------------------------------------------------------------
-# URL do banco de teste
-# ---------------------------------------------------------------------------
-
 
 def _get_test_db_url() -> str:
     user = quote_plus(settings.POSTGRES_USER)
     password = quote_plus(settings.POSTGRES_PASSWORD)
-    db_test = settings.POSTGRES_DB_TEST  # lê do .env
+    db_test = settings.POSTGRES_DB_TEST
     return (
         f"postgresql+asyncpg://{user}:{password}@"
         f"{settings.POSTGRES_SERVER}:{settings.POSTGRES_PORT_TEST}/{db_test}"
     )
-
-
-# ---------------------------------------------------------------------------
-# Fixtures de escopo de sessão — criadas uma única vez por rodada de testes
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="session")
@@ -59,25 +41,25 @@ def event_loop():
 
 
 @pytest.fixture(scope="session")
-def async_engine_test():
+async def async_engine_test():
     """Engine assíncrona conectada ao banco de testes."""
     engine = create_async_engine(_get_test_db_url())
     yield engine
+    # Libera o pool de conexões ao finalizar os testes
+    await engine.dispose()
 
 
 @pytest.fixture(scope="session", autouse=True)
 async def create_tables(async_engine_test):
     """Cria todas as tabelas antes da suíte e as dropa ao final."""
     async with async_engine_test.begin() as conn:
+        # Drop before create para limpar sujeira de testes cancelados pela metade
+
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield
     async with async_engine_test.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-
-
-# ---------------------------------------------------------------------------
-# Fixtures de escopo de função — recriadas a cada teste
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -86,28 +68,20 @@ async def async_db_session(async_engine_test):
     Sessão transacional assíncrona com rollback automático.
     """
     async with async_engine_test.connect() as connection:
-        # 2. Iniciamos a transação na conexão
         transaction = await connection.begin()
 
-        # 3. Criamos a sessão vinculada à conexão
         async_session = AsyncSession(
             bind=connection,
             expire_on_commit=False,
-            join_transaction_mode="create_savepoint",  # Opcional: ajuda em sub-transações
+            join_transaction_mode="create_savepoint",
         )
 
         yield async_session
 
-        # --- Limpeza (Ordem Crítica) ---
-        # 4. Primeiro, fechamos a sessão para garantir que ela não tente usar a conexão depois
+        # Limpeza: Apenas fecha a sessão e dá rollback na transação pai.
         await async_session.close()
-
-        # 5. Depois, damos o rollback na transação da conexão
         if transaction.is_active:
             await transaction.rollback()
-
-
-from httpx import ASGITransport, AsyncClient
 
 
 @pytest.fixture(autouse=True)
@@ -122,29 +96,24 @@ async def _inject_session_into_factories(async_db_session: AsyncSession):
 
 @pytest.fixture
 async def client(async_db_session: AsyncSession):
-    """
-    AsyncClient com `get_db` substituído pela sessão de teste assíncrona.
-    """
+    """AsyncClient com `get_db` substituído pela sessão de teste assíncrona."""
 
     async def override_get_db():
         yield async_db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    # Usamos ASGITransport para conectar o AsyncClient diretamente à app FastAPI
     transport = ASGITransport(app=app)
+
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
-    app.dependency_overrides.clear()
+
+    # Remove apenas o override injetado por esta fixture
+    app.dependency_overrides.pop(get_db, None)
 
 
 @pytest.fixture
 def auth_as():
-    """Autentica o client com um papel RBAC clássico.
-
-    A fixture deliberadamente ignora os scopes declarados nas rotas: durante
-    a migração para RBAC, os testes devem expressar autorização por papel,
-    não por uma lista de permissões granulares.
-    """
+    """Autentica o client com um papel RBAC clássico."""
 
     def _apply(
         user: models.Users,

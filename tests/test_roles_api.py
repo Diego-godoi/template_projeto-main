@@ -1,4 +1,3 @@
-import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import schema, util
@@ -9,7 +8,6 @@ from .factories import UsersFactory
 API_PREFIX = settings.API_URL_PREFIX
 
 
-@pytest.mark.asyncio
 async def test_roles_crud_fluxo_completo(
     client, async_db_session: AsyncSession, auth_as
 ):

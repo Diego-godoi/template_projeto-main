@@ -3,8 +3,19 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Index, LargeBinary, String, text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Index,
+    LargeBinary,
+    String,
+    text,
+)
+from sqlalchemy.orm import (
+    Mapped,
+    mapped_column,
+    relationship,
+)
 
 from app.db.base_class import Base
 
@@ -58,7 +69,7 @@ class Users(Base):
     user_roles: Mapped[list[UserRoles]] = relationship(
         "UserRoles",
         back_populates="user",
-        lazy="noload",
+        lazy="raise",
         cascade="all, delete-orphan",
         passive_deletes=True,
     )

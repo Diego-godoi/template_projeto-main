@@ -377,7 +377,6 @@ class TestQueryBuilderFilterJsonIlike:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_query_builder_executa_busca_no_banco(
     async_db_session: AsyncSession,
 ):
@@ -390,7 +389,6 @@ async def test_query_builder_executa_busca_no_banco(
     assert isinstance(data, list)
 
 
-@pytest.mark.asyncio
 async def test_service_response_compativel_com_pydantic(
     async_db_session: AsyncSession,
 ):

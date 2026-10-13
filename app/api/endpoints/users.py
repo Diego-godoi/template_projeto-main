@@ -2,7 +2,14 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Request, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Form,
+    Request,
+    Response,
+    status,
+)
 from pydantic.types import UUID4
 
 from app import auth, schema
@@ -19,7 +26,6 @@ router = APIRouter(prefix="/users", tags=["Users"])
     response_model=schema.ResponseUsers,
     status_code=status.HTTP_200_OK,
 )
-@limiter.limit(HEAVY_LIMIT)
 async def get_users(
     request: Request,
     query_parameters: QueryParametersDep,

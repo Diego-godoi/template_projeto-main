@@ -42,6 +42,6 @@ class UserRoles(Base):
     role: Mapped[Roles] = relationship(
         "Roles",
         back_populates="user_roles",
-        lazy="noload",
+        lazy="raise",
         passive_deletes=True,
     )

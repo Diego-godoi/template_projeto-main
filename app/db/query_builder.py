@@ -58,18 +58,12 @@ class QueryBuilder:
         self._order_descending = True
 
     def set_all_data(self, all_data: bool) -> "QueryBuilder":
-        """Choose between returning all rows or only the first matching row."""
+        """Define se deve retornar todos os resultados ou apenas o primeiro.
+
+        Quando ``all_data`` é False, o build() força ``LIMIT 1``,
+        sobrescrevendo qualquer paginação configurada.
+        """
         self._all_data = all_data
-        return self
-
-    def join(self, target: Any, *props: Any) -> "QueryBuilder":
-        """Add a SQLAlchemy JOIN to the statement."""
-        self._query = self._query.join(target, *props)
-        return self
-
-    def where(self, *criteria: Any) -> "QueryBuilder":
-        """Add SQLAlchemy WHERE criteria to the statement."""
-        self._query = self._query.where(*criteria)
         return self
 
     def order_by(
@@ -80,6 +74,20 @@ class QueryBuilder:
         """
         self._order_field = field
         self._order_descending = descending
+        return self
+
+    def join(self, target: Any, *props: Any) -> "QueryBuilder":
+        """
+        Adiciona um JOIN à query.
+        """
+        self._query = self._query.join(target, *props)
+        return self
+
+    def where(self, *criteria: Any) -> "QueryBuilder":
+        """
+        Adiciona cláusulas WHERE literais à query.
+        """
+        self._query = self._query.where(*criteria)
         return self
 
     # ------------------------------------------------------------------
@@ -269,11 +277,11 @@ class QueryBuilder:
         elif hasattr(self._model, "id"):
             query = query.order_by(self._model.id.desc())
 
-        # Aplicar offset/limit
+        # Se all_data for False, força LIMIT 1 ignorando a paginação
         if not self._all_data:
             query = query.limit(1)
         elif self._skip is not None and self._limit is not None:
-            query = query.offset(self._skip * self._limit).limit(self._limit)
+            query = query.offset(self._skip).limit(self._limit)
 
         return query
 
@@ -285,46 +293,43 @@ class QueryBuilder:
         count_target = getattr(self._model, "id", None)
         if count_target is not None:
             return self._query.with_only_columns(
-                func.count(func.distinct(count_target))
+                func.count(count_target)
             ).order_by(None)
         return self._query.with_only_columns(func.count()).order_by(None)
 
     # ------------------------------------------------------------------
     # Helpers privados
     # ------------------------------------------------------------------
-
     @staticmethod
     def _coerce_value(column, value: Any, operator: str) -> Any:
-        """Convert query input to the Python type expected by a model column."""
+        """Converte a string de entrada para o tipo Python adequado conforme a coluna."""
         if value is None or operator == "|":
             return value
 
         column_type = getattr(column, "type", None)
 
-        if (
-            isinstance(column_type, Enum)
-            and column_type.enum_class is not None
-        ):
-            try:
-                return column_type.enum_class(value)
-            except ValueError:
-                valid_values = ", ".join(
-                    str(enum_value.value)
-                    for enum_value in column_type.enum_class
-                )
-                raise CustomException(
-                    status_code=422,
-                    detail=(
-                        f"O valor '{value}' não é válido para o Enum. "
-                        f"Valores válidos: {valid_values}."
-                    ),
-                )
+        if isinstance(column_type, Enum):
+            enum_class = column_type.enum_class
+            if enum_class is not None:
+                try:
+                    return enum_class(value)
+                except ValueError:
+                    valid_values = ", ".join(
+                        str(enum_value.value) for enum_value in enum_class
+                    )
+                    raise CustomException(
+                        status_code=422,
+                        detail=(
+                            f"O valor '{value}' não é válido para o Enum. "
+                            f"Valores válidos: {valid_values}."
+                        ),
+                    )
 
         if isinstance(column_type, Boolean):
-            normalized = str(value).strip().lower()
-            if normalized in ("true", "t", "1", "yes"):
+            val_str = str(value).strip().lower()
+            if val_str in ("true", "t", "1", "yes"):
                 return True
-            if normalized in ("false", "f", "0", "no"):
+            if val_str in ("false", "f", "0", "no"):
                 return False
             raise CustomException(
                 status_code=422,

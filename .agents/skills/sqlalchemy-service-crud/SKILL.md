@@ -14,7 +14,7 @@ Neste projeto, a camada de **Service** é a responsável direta pela execução 
 * Para retornar um único objeto: `result.scalar_one_or_none()`.
 * Para retornar uma lista: `result.scalars().all()`.
 * **Injeção de Dependência:** A `db: AsyncSession` deve ser sempre injetada via parâmetro nas funções do serviço, vinda do `Depends(get_db)` do endpoint.
-* **Transacionalidade:** O `await db.commit()` e `await db.rollback()` devem ser gerenciados dentro do serviço, garantindo que operações que envolvam múltiplas tabelas sejam atômicas.
+* **Transacionalidade:** O `await db.commit()` deve ser gerenciado dentro do serviço, garantindo que operações que envolvam múltiplas tabelas sejam atômicas.
 * **Prevenção de Race Conditions:** Em operações com potencial de acessos concorrentes ao mesmo registro (ex: atualização de estoques, saldos, reservas ou alteração de status por múltiplos processos), **é obrigatória a utilização de mecanismos de Lock**. O controle de concorrência garante a integridade dos dados, evitando que escritas simultâneas causem perda de atualizações (*lost updates*) ou leituras inconsistentes.
 
 ## Exemplos Padronizados

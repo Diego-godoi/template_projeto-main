@@ -25,9 +25,9 @@ async def verify_password(
         return await asyncio.to_thread(
             lambda: bcrypt.checkpw(plain_password, hashed_password)
         )
-    except Exception as e:  # noqa: BLE001
-        logger.error(
-            "Exceção inesperada capturada [%s]: %s", type(e).__name__, str(e)
+    except Exception:
+        logger.exception(
+            "Falha inesperada ao verificar senha — operação abortada",
         )
         raise error.CustomException(
             status_code=500,
@@ -42,9 +42,9 @@ async def get_password_hash(password: str | bytes) -> bytes:
         return await asyncio.to_thread(
             lambda: bcrypt.hashpw(password, bcrypt.gensalt())
         )
-    except Exception as e:  # noqa: BLE001
-        logger.error(
-            "Exceção inesperada capturada [%s]: %s", type(e).__name__, str(e)
+    except Exception:
+        logger.exception(
+            "Falha inesperada ao gerar hash de senha — operação abortada",
         )
         raise error.CustomException(
             status_code=500,

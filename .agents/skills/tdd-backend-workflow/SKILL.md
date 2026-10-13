@@ -34,7 +34,7 @@ Com base nas regras de negócio e validações enviadas pelo usuário, escreva *
 
 2. **Testes de Integração**:
    * Foco em operações de banco e fluxos completos do Service.
-   * Utilize `factory.create()` para objetos persitidos.
+   * Utilize `factory.create_async()` para objetos persitidos.
    * Garanta o uso de `AsyncSession` e marcadores assíncronos.
 
 ⛔ **PARADA OBRIGATÓRIA:** Finalize a resposta da Fase 1 sem gerar nenhum código da camada Service. Pergunte ao usuário:

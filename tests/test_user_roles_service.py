@@ -11,7 +11,6 @@ from app.util.annotated import QueryParameters
 from .factories import RolesFactory, UserRolesFactory
 
 
-@pytest.mark.asyncio
 async def test_create_user_role_com_sucesso(async_db_session: AsyncSession):
     user_role = UserRolesFactory.create()
     await async_db_session.flush()
@@ -21,7 +20,6 @@ async def test_create_user_role_com_sucesso(async_db_session: AsyncSession):
     assert user_role.role_id is not None
 
 
-@pytest.mark.asyncio
 async def test_create_user_role_referencias_invalidas_levanta_erro(
     async_db_session: AsyncSession,
 ):
@@ -37,7 +35,6 @@ async def test_create_user_role_referencias_invalidas_levanta_erro(
     assert any("papel não encontrado" in err["msg"] for err in errors)
 
 
-@pytest.mark.asyncio
 async def test_patch_user_role_com_sucesso(async_db_session: AsyncSession):
     user_role = UserRolesFactory.create()
     new_role = RolesFactory.create()
@@ -55,7 +52,6 @@ async def test_patch_user_role_com_sucesso(async_db_session: AsyncSession):
     assert user_role_atualizada.role_id == new_role.id
 
 
-@pytest.mark.asyncio
 async def test_patch_user_role_referencias_invalidas_levanta_erro(
     async_db_session: AsyncSession,
 ):
@@ -72,7 +68,6 @@ async def test_patch_user_role_referencias_invalidas_levanta_erro(
     assert len(errors) == 2
 
 
-@pytest.mark.asyncio
 async def test_patch_user_role_id_inexistente_levanta_404(
     async_db_session: AsyncSession,
 ):
@@ -86,7 +81,6 @@ async def test_patch_user_role_id_inexistente_levanta_404(
     assert exc_info.value.status_code == 404
 
 
-@pytest.mark.asyncio
 async def test_delete_user_role_com_sucesso(async_db_session: AsyncSession):
     user_role = UserRolesFactory.create()
 
@@ -99,7 +93,6 @@ async def test_delete_user_role_com_sucesso(async_db_session: AsyncSession):
     assert await async_db_session.get(UserRoles, ur_id) is None
 
 
-@pytest.mark.asyncio
 async def test_delete_user_role_id_inexistente_levanta_404(
     async_db_session: AsyncSession,
 ):
@@ -109,7 +102,6 @@ async def test_delete_user_role_id_inexistente_levanta_404(
     assert exc_info.value.status_code == 404
 
 
-@pytest.mark.asyncio
 async def test_get_user_roles_paginado(async_db_session: AsyncSession):
     UserRolesFactory.build_batch(2)
     await async_db_session.flush()

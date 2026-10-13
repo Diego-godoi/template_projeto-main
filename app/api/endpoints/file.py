@@ -11,7 +11,6 @@ from fastapi import (
     UploadFile,
     responses,
 )
-from pydantic.types import UUID4
 
 from app import auth, error
 from app.core.config import settings
@@ -59,33 +58,29 @@ async def create_file(
     err_msg = await validate_file_metadata(file, type_data)
     if err_msg:
         raise error.CustomException(422, err_msg)
-    filename = await save_file(file)
+    filename = await save_file(file, type_data)
     return filename
 
 
-@router.get("/{filename}", response_class=responses.FileResponse)
+@router.get("/{filename}")
 @limiter.limit(UPLOAD_LIMIT)
-def get_file_by_filename(
+async def get_file_by_filename(
     request: Request,
-    filename: UUID4,
-    Authentication: dict = Depends(
-        auth.require_roles("User", "Manager", "Admin")
-    ),
+    filename: str,
 ):
-    if os.path.exists(f"{settings.UPLOAD_DIR}{filename!s}"):
-        image = os.path.join(settings.UPLOAD_DIR, str(filename))
+    """Busca um arquivo salvo pelo nome e pela sua categoria."""
+    file_path = os.path.join(settings.UPLOAD_DIR, filename)
 
-        def iterfile():
-            with open(image, mode="rb") as file_like:
-                yield from file_like
-
-    else:
+    if not os.path.exists(file_path):
         raise error.CustomException(
-            status_code=404, detail="Imagem nao encontrada"
+            status_code=404, detail="Arquivo não encontrado"
         )
-    return responses.StreamingResponse(
-        iterfile(),
-        media_type=magic.from_file(
-            f"{settings.UPLOAD_DIR}{filename!s}", mime=True
-        ),
+
+    # Detecta o tipo do arquivo (video/mp4, image/png, etc)
+    mime_type = magic.from_file(file_path, mime=True)
+
+    return responses.FileResponse(
+        path=file_path,
+        media_type=mime_type,
+        headers={"Content-Disposition": "inline"},
     )

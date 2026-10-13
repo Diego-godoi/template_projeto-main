@@ -22,8 +22,9 @@ class QueryParameters:
             Default é 0. Se 'skip' e 'limit' forem fornecidos, o 'skip' atuará como um offset para a paginação,
             calculando a posição inicial dos itens a serem retornados.
         limit (int, optional): Número máximo de itens a serem retornados.
-            Default é 100. Por exemplo, se limit=10, apenas os primeiros 10 resultados serão retornados.
-        include (list[str], optional): Lista de atributos a serem devolvidos na consulta obs se None todos serão devolvidos.
+        include (list[str], optional): Lista com os nomes dos relacionamentos a serem carregados
+            (eager loading) junto ao registro principal. Nomes que não
+            correspondem a um relacionamento existente no model são silenciosamente ignorados.
     """
 
     def __init__(
@@ -61,17 +62,22 @@ class QueryParameters:
         ),
         skip: int | None = Query(
             0,
+            ge=0,
             description="Se 'skip' e 'limit' forem fornecidos, o 'skip' atuará como um offset para a paginação, "
             "calculando a posição inicial dos itens a serem retornados.",
         ),
         limit: int | None = Query(
             100,
+            ge=1,
+            le=100,
             description="Número máximo de itens a serem retornados. "
             "Por exemplo, se limit=10, apenas os primeiros 10 resultados serão retornados. ",
         ),
-        include: str | None = Query(
+        include: list[str] | None = Query(
             None,
-            description="Lista de atributos a serem excluídos da consulta.",
+            description="Lista JSON com os nomes dos relacionamentos a serem carregados "
+            "(eager loading) junto ao registro principal. Nomes que não correspondem a um relacionamento existente no model "
+            "são silenciosamente ignorados; apenas os relacionamentos válidos são carregados.",
         ),
     ):
         valid_operators = {"=", "~", "!", "<", ">", "<=", ">=", "|"}
@@ -138,20 +144,17 @@ class QueryParameters:
             self.json_string = None
 
         if include is not None:
-            try:
-                self.include = json.loads(include)
-                if not isinstance(self.include, list):
-                    raise HTTPException(
-                        status_code=422,
-                        detail="O parâmetro 'include' deve ser uma string JSON válida representando uma lista!",
-                    )
-            except json.JSONDecodeError:
+            # Rejeita listas com strings vazias ou apenas espaços
+            if any(
+                not item.strip() for item in include if isinstance(item, str)
+            ):
                 raise HTTPException(
                     status_code=422,
-                    detail="O parâmetro 'include' deve ser uma list string JSON válida!",
+                    detail="Os itens da lista 'include' não podem ser vazios.",
                 )
+            self.include = include
         else:
             self.include = None
 
 
-QueryParametersDep = Annotated[dict, Depends(QueryParameters)]
+QueryParametersDep = Annotated[QueryParameters, Depends(QueryParameters)]

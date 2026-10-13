@@ -15,8 +15,9 @@ A organização separa a **lógica de negócio** (Unit) da **lógica de sistema*
 tests/
 ├── factories.py       # Ponto central para FactoryBoy
 ├── conftest.py        # Fixtures globais, db_session, clients
-├── test_***_service.py
-└── test_***_api.py       
+├── test_***.py   # Testes unitários.
+├── test_***_service.py # Testes de integração com todos os métodos do Serviço
+└── test_***_api.py    # Testes de integração com todos os endpoints, além da criação de um teste para o fluxo completo em um unico método.
 ```
 
 ---
@@ -26,17 +27,53 @@ tests/
 Utilize `factory_boy` como única fonte da verdade para dados de teste. A distinção entre **Unit** e **Integration** é feita pelo método de instanciamento:
 
 * **Unitários:** Use `factory.build()`. Objeto em memória, sem acesso ao banco. Rápido e isolado.
-* **Integração:** Use `factory.create()`. Persiste no banco de dados.
+* **Integração:** Use `factory.create_async()`. Persiste no banco de dados.
 
 ```python
 # tests/factories.py
-class UserFactory(factory.alchemy.SQLAlchemyModelFactory):
+
+class BaseSQLAlchemyFactory(factory.alchemy.SQLAlchemyModelFactory):
+    class Meta:
+        abstract = True
+        sqlalchemy_session = None
+        sqlalchemy_session_persistence = None
+
+    @classmethod
+    async def create_async(cls, **kwargs):
+        """Cria e salva um objeto no banco de forma assíncrona."""
+        # 1. Constrói o objeto (e seus relacionamentos) apenas em memória
+        obj = cls.build(**kwargs)
+
+        # 2. Salva no banco de dados
+        session = cls._meta.sqlalchemy_session
+        session.add(obj)
+        await session.commit()
+        await session.refresh(obj)
+
+        return obj
+
+    @classmethod
+    async def create_batch_async(cls, size: int, **kwargs):
+        """Cria e salva múltiplos objetos de forma assíncrona."""
+        objs = cls.build_batch(size, **kwargs)
+
+        session = cls._meta.sqlalchemy_session
+        session.add_all(objs)
+        await session.commit()
+
+        for obj in objs:
+            await session.refresh(obj)
+
+        return objs
+
+    id = factory.LazyFunction(uuid.uuid4)
+
+class UsersFactory(BaseSQLAlchemyFactory):
     class Meta:
         model = User
         sqlalchemy_session = None # Injeção de sessão será feita pelo conftest
 
-    id = factory.Sequence(lambda n: n)
-    username = factory.Faker("user_name")
+    name = factory.Faker("name", locale="pt_BR")
 
 ```
 
@@ -72,13 +109,13 @@ Foco em comportamentos de sistema e rotas HTTP.
 
 ```python
 import pytest
-from tests.factories import UserFactory
+from tests.factories import UsersFactory
 from httpx import AsyncClient
 
 @pytest.mark.asyncio
 async def test_atualizar_perfil_usuario(client: AsyncClient, db_session):
     # Arrange: Criação via DB
-    user = UserFactory.create(username="diego_dev")
+    user = User Factory.create_async(username="diego_dev")
     payload = {"username": "diego_novo"}
 
     # Act: Requisição real
@@ -121,7 +158,7 @@ poetry run pytest tests/ \
 3. **Tratamento Async**: Funções assíncronas são testadas com `pytest-asyncio`? Garanta que `@pytest.mark.asyncio` ou `async def` sejam usados corretamente.
 4. **Casos de Borda**: Condições de limite e erros são testados?
 5. **Legibilidade**: Os nomes dos testes são descritivos e auto-explicativos?
-6. **Isolamento:** Testes unitários não podem ter acesso ao `db_session`. Se precisar de banco, mova para `integration/`.
+6. **Isolamento:** Testes unitários não podem ter acesso ao `db_session`.
 7. **Performance:** Testes unitários devem rodar em milissegundos. Se um teste demorar, verifique se há I/O indevido.
 7. **Autodocumentação:** Se o teste falhar, a mensagem de erro (ou o nome do teste) deve dizer o que quebrou, sem precisar abrir o código.
 8. **Cobertura**: A cobertura de testes é superior a 85%?

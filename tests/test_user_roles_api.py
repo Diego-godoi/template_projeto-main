@@ -1,4 +1,3 @@
-import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import schema
@@ -7,7 +6,6 @@ from app.core.config import settings
 from .factories import RolesFactory, UsersFactory
 
 
-@pytest.mark.asyncio
 async def test_user_roles_crud_fluxo_completo(
     client, async_db_session: AsyncSession, auth_as
 ):

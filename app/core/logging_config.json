@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "formatters": {
+    "natural": {
+      "format": "%(asctime)s [%(levelname)s] [%(name)s] [request_id=%(request_id)s] %(message)s",
+      "datefmt": "%Y-%m-%d %H:%M:%S"
+    }
+  },
+  "filters": {
+    "request_context": {
+      "()": "app.core.logging_config.RequestContextFilter"
+    }
+  },
+  "handlers": {
+    "stdout": {
+      "class": "logging.StreamHandler",
+      "stream": "ext://sys.stdout",
+      "formatter": "natural",
+      "filters": [
+        "request_context"
+      ]
+    }
+  },
+  "loggers": {
+    "app": {
+      "handlers": [
+        "stdout"
+      ],
+      "level": "INFO",
+      "propagate": false
+    },
+    "uvicorn": {
+      "handlers": [
+        "stdout"
+      ],
+      "level": "INFO",
+      "propagate": false
+    },
+    "uvicorn.access": {
+      "handlers": [],
+      "level": "WARNING",
+      "propagate": false
+    }
+  },
+  "root": {
+    "handlers": [
+      "stdout"
+    ],
+    "level": "WARNING"
+  }
+}

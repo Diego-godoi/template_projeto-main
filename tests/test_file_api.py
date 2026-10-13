@@ -26,7 +26,6 @@ def override_upload_dir(tmp_path):
     settings.UPLOAD_DIR = original_dir
 
 
-@pytest.mark.asyncio
 async def test_post_file_success(
     client: TestClient, override_upload_dir, auth_as
 ):
@@ -50,12 +49,11 @@ async def test_post_file_success(
         assert await f.read() == file_content
 
 
-@pytest.mark.asyncio
 async def test_get_file_by_filename_success(
     client: TestClient, override_upload_dir, auth_as
 ):
     user = UsersFactory.build()
-    auth_as(user, "user")
+    auth_as(user, "Leader")
     # Cria arquivo mockado manualmente
     mock_filename = str(uuid.uuid4())
     filepath = os.path.join(override_upload_dir, mock_filename)
@@ -69,14 +67,13 @@ async def test_get_file_by_filename_success(
     assert response.content == b"Conteudo Mockado GET"
 
 
-@pytest.mark.asyncio
 async def test_get_file_by_filename_not_found(
     client: TestClient, override_upload_dir, auth_as
 ):
     user = UsersFactory.build()
-    auth_as(user, "user")
+    auth_as(user, "Leader")
     fail_filename = str(uuid.uuid4())  # ID válido mas arquivo Inexistente
     response = await client.get(f"{API_PREFIX}/file/{fail_filename}")
 
     assert response.status_code == 404
-    assert "Imagem nao encontrada" in response.json()["detail"]
+    assert "Arquivo não encontrado" in response.json()["detail"]

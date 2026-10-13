@@ -70,9 +70,11 @@ async def _get_user_with_roles(
         rows = (await db.execute(stmt)).all()
     except (ValueError, TypeError):
         raise error.CustomException(401, "Usuário não encontrado ou inativo.")
-    if not rows or rows[0][0].is_deleted:
+    if not rows:
         raise error.CustomException(401, "Usuário não encontrado ou inativo.")
     user = rows[0][0]
+    if user.is_deleted:
+        raise error.CustomException(401, "Usuário não encontrado ou inativo.")
     roles = sorted({role_name.lower() for _, role_name in rows if role_name})
     return user, roles
 

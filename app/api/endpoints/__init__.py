@@ -9,6 +9,6 @@ from .users import router as users_router
 routers = APIRouter()
 routers.include_router(login_router)
 routers.include_router(file_router)
-routers.include_router(roles_router)
 routers.include_router(users_router)
+routers.include_router(roles_router)
 routers.include_router(user_roles_router)

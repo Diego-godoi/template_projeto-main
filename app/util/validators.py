@@ -1,42 +1,72 @@
 import re
 from itertools import cycle
+from typing import TYPE_CHECKING
 
 import magic
-from email_validator import validate_email
+from email_validator import EmailNotValidError, validate_email
 from fastapi import UploadFile
 
 from app import error
-from app.schema import FileType
+
+if TYPE_CHECKING:
+    from app.schema.enums import FileType
 
 __all__ = [
+    "normalize_address_number",
     "normalize_capitalize",
+    "normalize_cep",
+    "normalize_digits",
     "normalize_email",
     "normalize_lower",
     "normalize_password",
     "normalize_phone",
+    "normalize_trim",
     "normalize_uper",
+    "normalize_upper",
     "validate_cnpj",
     "validate_cnpj_cpf",
     "validate_cpf",
 ]
 
-ALLOWED_MIME_TYPES: dict[FileType, set[str]] = {
-    FileType.Image: {"image/jpeg", "image/png", "image/webp"},
-    FileType.Video: {"video/mp4", "video/webm", "video/quicktime"},
-    FileType.Application: {"application/pdf"},
-    FileType.Text: {"text/plain", "text/csv"},
+ALLOWED_MIME_TYPES: dict[str, set[str]] = {
+    "image": {"image/jpeg", "image/png", "image/webp"},
+    "video": {"video/mp4", "video/webm", "video/quicktime"},
+    "application": {"application/pdf"},
+    "text": {"text/plain", "text/csv"},
 }
+
+
+def normalize_trim(key: str | None) -> str | None:
+    """Remove espaços externos e converte strings vazias em ``None``."""
+    if key is None:
+        return None
+    value = str(key).strip()
+    if value.lower() in {"none", "null"}:
+        return None
+    return value or None
+
+
+def normalize_digits(key: str | None) -> str | None:
+    """Remove máscaras de identificadores numéricos."""
+    value = normalize_trim(key)
+    if value is None:
+        return None
+    digits = re.sub(r"\D", "", value)
+    if not digits:
+        raise error.CustomException(
+            422, "O campo deve conter ao menos um dígito numérico."
+        )
+    return digits
 
 
 # validador de CPF
 def validate_cpf(key: str) -> str | None:
-    if key is None or str(key).strip().lower() in ("none", "null"):
+    if key is None:
         return None
-    if not str(key).strip():
-        return key
-
-    # Remover espaços em branco e caracteres não numéricos
-    key = re.sub(r"\D", "", str(key).strip())
+    value = str(key).strip()
+    if not value:
+        return None
+    key = re.sub(r"\D", "", value)
 
     # Verificar comprimento e se todos os caracteres são dígitos
     if len(key) != 11 or not key.isdigit():
@@ -69,13 +99,12 @@ def validate_cpf(key: str) -> str | None:
 
 def validate_cnpj(cnpj: str) -> str | None:
     """Valida o CNPJ de acordo com o cálculo dos dígitos verificadores."""
-    if cnpj is None or str(cnpj).strip().lower() in ("none", "null"):
+    if cnpj is None:
         return None
-    if not str(cnpj).strip():
-        return cnpj
-
-    # Remove qualquer caractere que não seja dígito
-    cnpj = "".join(filter(str.isdigit, str(cnpj)))
+    value = str(cnpj).strip()
+    if not value:
+        return None
+    cnpj = re.sub(r"\D", "", value)
 
     if len(cnpj) != 14:
         raise error.CustomException(
@@ -117,8 +146,12 @@ def validate_cnpj(cnpj: str) -> str | None:
 
 # Valida um dado que pode ser CPF OU CNPJ
 def validate_cnpj_cpf(key: str):
-    if not key:
-        return key
+    if key is None:
+        return None
+    value = str(key).strip()
+    if not value:
+        return None
+    key = re.sub(r"\D", "", value)
     if len(key) == 11:
         return validate_cpf(key)
     if len(key) == 14:
@@ -129,20 +162,22 @@ def validate_cnpj_cpf(key: str):
 
 # Aplica Primeria letra maiuscula em uma string
 def normalize_capitalize(key: str):
-    if key is None or str(key).strip().lower() in ("none", "null"):
+    key = normalize_trim(key)
+    if key is None:
         return None
-    if not str(key).strip():
-        return key
-    key = str(key).lower()
-    return " ".join((word.capitalize()) for word in key.split(" "))
+    return " ".join(word.capitalize() for word in key.lower().split())
 
 
 def normalize_uper(key: str):
-    if key is None or str(key).strip().lower() in ("none", "null"):
+    key = normalize_trim(key)
+    if key is None:
         return None
-    if not str(key).strip():
-        return key
-    return " ".join((word.upper()) for word in str(key).split(" "))
+    return " ".join(word.upper() for word in key.split())
+
+
+def normalize_upper(key: str | None):
+    """Normaliza texto para caixa alta, preservando apenas conteúdo útil."""
+    return normalize_uper(key)
 
 
 def normalize_password(key: bytes):
@@ -154,19 +189,16 @@ def normalize_password(key: bytes):
 
 
 def normalize_lower(key: str):
-    if key is None or str(key).strip().lower() in ("none", "null"):
+    key = normalize_trim(key)
+    if key is None:
         return None
-    if not str(key).strip():
-        return key
-    return " ".join((word.lower()) for word in str(key).split(" "))
+    return " ".join(word.lower() for word in key.split())
 
 
 def normalize_phone(key: str):
-    if key is None or str(key).strip().lower() in ("none", "null"):
+    key = normalize_digits(key)
+    if key is None:
         return None
-    if not str(key).strip():
-        return key
-    key = re.sub("[^0-9]+", "", str(key))
     if len(key) > 13 or len(key) < 11:
         raise error.CustomException(
             status_code=422,
@@ -176,14 +208,13 @@ def normalize_phone(key: str):
 
 
 def normalize_email(key: str) -> str | None:
-    if key is None or str(key).strip().lower() in ("none", "null"):
+    key = normalize_trim(key)
+    if key is None:
         return None
-    if not str(key).strip():
-        return key
     try:
         valid = validate_email(key, check_deliverability=False)
         key = valid.normalized
-    except Exception:  # noqa: BLE001 — barreira final, não deve vazar detalhe interno
+    except EmailNotValidError:
         raise error.CustomException(
             status_code=422,
             detail="Formato de email invalido",
@@ -192,7 +223,7 @@ def normalize_email(key: str) -> str | None:
 
 
 async def validate_file_metadata(
-    file: UploadFile, type_data: FileType
+    file: UploadFile, type_data: "FileType"
 ) -> str | None:
     """Valida o MIME type real de um arquivo sem consumi-lo da memória/disco.
 
@@ -210,7 +241,7 @@ async def validate_file_metadata(
     if not file or not file.filename:
         return "Arquivo não fornecido"
 
-    allowed = ALLOWED_MIME_TYPES.get(type_data, set())
+    allowed = ALLOWED_MIME_TYPES.get(type_data.value, set())
 
     # Lê os primeiros bytes para conferir os "magic bytes" reais do arquivo
     header = await file.read(2048)
@@ -224,3 +255,43 @@ async def validate_file_metadata(
         return f"Formato de mídia inválido ('{mime_type}'). Permitidos: {', '.join(allowed)}"
 
     return None
+
+
+def normalize_cep(key: str) -> str:
+    # Remove tudo que não for número (ex: "01310-100" vira "01310100")
+    key = normalize_digits(key)
+    if key is None:
+        return None
+
+    if len(key) != 8:
+        raise error.CustomException(
+            422,
+            "CEP inválido. O campo deve conter exatamente 8 dígitos numéricos.",
+        )
+
+    # Evita CEPs falsos comuns com números repetidos
+    if key == key[0] * 8:
+        raise error.CustomException(422, "CEP inválido.")
+
+    return key
+
+
+def normalize_address_number(key: str | None) -> str | None:
+    """
+    Normaliza o número do endereço.
+    Permite Null/None, mas se houver valor, deve ser exclusivamente numérico.
+    """
+    value = normalize_trim(key)
+
+    # Permite ser nulo
+    if value is None:
+        return None
+
+    # Verifica se a string contém APENAS números (sem letras ou caracteres especiais como '-' ou ',')
+    if not value.isdigit():
+        raise error.CustomException(
+            422,
+            "O número do endereço deve conter apenas números, sem letras ou caracteres especiais.",
+        )
+
+    return value

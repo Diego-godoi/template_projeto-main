@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from sqlalchemy import select
@@ -7,6 +8,8 @@ from app.db import QueryBuilder, ServiceResponse, _db
 from app.models import UserRoles
 from app.schema import PatchUserRoles, PostUserRoles
 from app.util import QueryParametersDep
+
+logger = logging.getLogger(__name__)
 
 
 class UserRolesService:
@@ -31,6 +34,7 @@ class UserRolesService:
                   o 'total' de registros encontrados.
         """
 
+        logger.debug("Buscando associações entre usuários e papéis")
         builder = (
             QueryBuilder(models.UserRoles)
             .filter(
@@ -44,6 +48,9 @@ class UserRolesService:
         total_items = (await session.execute(builder.build_count())).scalar()
         stmt = builder.paginate(query_params.skip, query_params.limit).build()
         data = (await session.execute(stmt)).scalars().unique().all()
+        logger.debug(
+            "Associações entre usuários e papéis buscadas com sucesso"
+        )
         return ServiceResponse(data=data, meta={"total_items": total_items})
 
     @staticmethod
@@ -61,6 +68,7 @@ class UserRolesService:
             UserRoles: O objeto de associação UserRoles recém-criado.
         """
         errors = []
+        logger.debug("Iniciando criação de associação entre usuário e papel")
 
         stmt = select(
             select(models.Users.id)
@@ -89,12 +97,16 @@ class UserRolesService:
             )
 
         if errors:
+            logger.warning(
+                "Erros encontrados ao validar associação entre usuário e papel"
+            )
             raise error.ValidationException(errors)
 
         data = UserRoles(**schema.model_dump())
         session.add(data)
         await session.commit()
         await session.refresh(data)
+        logger.info("Associação entre usuário e papel criada com sucesso")
         return data
 
     @staticmethod
@@ -116,9 +128,13 @@ class UserRolesService:
         Returns:
             UserRoles: O objeto UserRoles atualizado.
         """
+        logger.debug(
+            "Iniciando atualização de associação entre usuário e papel"
+        )
         item_to_update = await session.get(UserRoles, id)
 
         if not item_to_update:
+            logger.warning("Associação entre usuário e papel não encontrada")
             raise error.CustomException(404, "ID não encontrado")
 
         update_data = schema.model_dump(exclude_unset=True, exclude_none=True)
@@ -153,6 +169,9 @@ class UserRolesService:
             )
 
         if errors:
+            logger.warning(
+                "Erros encontrados ao validar associação entre usuário e papel"
+            )
             raise error.ValidationException(errors)
 
         for key, value in update_data.items():
@@ -162,6 +181,7 @@ class UserRolesService:
         await session.commit()
         await session.refresh(item_to_update)
 
+        logger.info("Associação entre usuário e papel atualizada com sucesso")
         return item_to_update
 
     @staticmethod
@@ -179,12 +199,15 @@ class UserRolesService:
         Returns:
             UserRoles: O objeto UserRoles que foi deletado.
         """
+        logger.debug("Iniciando exclusão de associação entre usuário e papel")
         item_to_delete = await session.get(UserRoles, id)
 
         if not item_to_delete:
+            logger.warning("Associação entre usuário e papel não encontrada")
             raise error.CustomException(404, "ID não encontrado")
 
         await session.delete(item_to_delete)
         await session.commit()
 
+        logger.info("Associação entre usuário e papel excluída com sucesso")
         return item_to_delete

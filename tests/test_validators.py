@@ -17,20 +17,45 @@ from app.util.functions import generate_cpf
 def test_normalize_capitalize():
     assert validators.normalize_capitalize("joAO silVa") == "Joao Silva"
     assert validators.normalize_capitalize("maria") == "Maria"
-    assert validators.normalize_capitalize("") == ""
+    assert validators.normalize_capitalize("") is None
     assert validators.normalize_capitalize(None) is None
 
 
 def test_normalize_uper():
     assert validators.normalize_uper("joao silva") == "JOAO SILVA"
-    assert validators.normalize_uper("") == ""
+    assert validators.normalize_uper("") is None
     assert validators.normalize_uper(None) is None
 
 
 def test_normalize_lower():
     assert validators.normalize_lower("JOao SIlva") == "joao silva"
-    assert validators.normalize_lower("") == ""
+    assert validators.normalize_lower("") is None
     assert validators.normalize_lower(None) is None
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("  joAO   silVA  ", "Joao Silva"),
+        ("\tMaria\tSouza\n", "Maria Souza"),
+        ("  maria  ", "Maria"),
+    ],
+)
+def test_normalize_capitalize_applies_trim_and_compacts_spaces(
+    value, expected
+):
+    assert validators.normalize_capitalize(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("  USer   Name  ", "user name"),
+        ("\tEMAIL\t", "email"),
+    ],
+)
+def test_normalize_lower_applies_trim_and_compacts_spaces(value, expected):
+    assert validators.normalize_lower(value) == expected
 
 
 # ==========================================
@@ -117,7 +142,7 @@ def test_validate_cnpj_cpf_wrapper():
     assert exc_info.value.status_code == 422
 
     # None ou Vazio
-    assert validators.validate_cnpj_cpf("") == ""
+    assert validators.validate_cnpj_cpf("") is None
     assert validators.validate_cnpj_cpf(None) is None
 
 
@@ -133,8 +158,12 @@ def test_normalize_phone_valido():
     valido2 = validators.normalize_phone("11987654321")
     assert valido2 == "11987654321"
 
-    assert validators.normalize_phone("") == ""
+    assert validators.normalize_phone("") is None
     assert validators.normalize_phone(None) is None
+
+
+def test_normalize_phone_removes_outer_spaces_before_cleaning():
+    assert validators.normalize_phone("  (11) 98765-4321  ") == "11987654321"
 
 
 def test_normalize_phone_invalido():
@@ -151,9 +180,10 @@ def test_normalize_phone_invalido():
 
 def test_normalize_email_valido():
     assert (
-        validators.normalize_email("TeStE@exAmple.com") == "teste@example.com"
+        validators.normalize_email("  TeStE@exAmple.com  ")
+        == "teste@example.com"
     )
-    assert validators.normalize_email("") == ""
+    assert validators.normalize_email("") is None
     assert validators.normalize_email(None) is None
 
 
