@@ -22,6 +22,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
     Respostas com status >= 400 são registradas como WARNING para facilitar
     a triagem de erros de cliente em ambientes de produção.
+    Rotas de infraestrutura (health, docs) com sucesso são rebaixadas para DEBUG.
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
@@ -42,9 +43,17 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             duration_ms = (time.perf_counter() - start) * 1000
 
-            log_fn = (
-                logger.warning if response.status_code >= 400 else logger.info
-            )
+            # --- Lógica de Dinamismo de Log ---
+            is_infra_route = request.url.path in ["/docs", "/redoc", "/openapi.json", "/health", "/metrics"]
+
+            if response.status_code >= 400:
+                log_fn = logger.warning
+            elif is_infra_route:
+                log_fn = logger.debug
+            else:
+                log_fn = logger.info
+            # ----------------------------------
+
             log_fn(
                 "Requisição %s %s do cliente %s finalizada com status %d em %.1fms",
                 request.method,
@@ -55,6 +64,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             )
 
             response.headers["X-Request-ID"] = request_id
+            response.headers["X-Process-Time"] = f"{duration_ms:.1f}ms"
             return response
         finally:
             REQUEST_ID.reset(request_id_token)

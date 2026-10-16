@@ -16,6 +16,8 @@ from app.core.logging_config import REQUEST_ID, setup_logging
 from app.error import CustomException, DatabaseException, ValidationException
 from app.middleware import LoggingMiddleware
 
+setup_logging(core.settings.LOG_LEVEL)
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,15 +29,11 @@ def _request_id(request: Request) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Gerencia o ciclo de vida da aplicação FastAPI.
-
-    O logging é inicializado aqui para garantir que qualquer mensagem emitida
-    durante o startup já use o formato e nível configurados corretamente.
     """
-    setup_logging(core.settings.LOG_LEVEL)
     logger.info(
         "Aplicação '%s' inicializada em modo %s",
         core.settings.PROJECT_NAME,
-        "DEBUG" if core.settings.DEBUG else "PRODUÇÃO",
+        "DEV" if core.settings.DEBUG else "PRODUÇÃO",
     )
     yield
     logger.info("Aplicação '%s' encerrada", core.settings.PROJECT_NAME)
@@ -45,7 +43,7 @@ if core.settings.DEBUG:
     app = FastAPI(title=core.settings.PROJECT_NAME, lifespan=lifespan)
 else:
     app = FastAPI(
-        docs_url=None, redocs_url=None, openapi_url=None, lifespan=lifespan
+        docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan
     )
 
 app.state.limiter = limiter
